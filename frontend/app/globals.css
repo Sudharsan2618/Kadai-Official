@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+/* Kadai design tokens — DESIGN.md (Carbon/Rocketlane) with one product decision:
+   the app canvas is plain WHITE; only the nav rail keeps the gray (#E8E8E8).
+   Cards separate via hairline borders + whisper-quiet shadows. */
+:root {
+  --background: #ffffff;
+  --foreground: #161616;
+  --card: #ffffff;
+  --primary: #0f62fe;            /* Carbon blue: links, active, focus — never buttons */
+  --action: #161616;             /* primary buttons are near-black */
+  --action-hover: #000000;
+  --secondary: #f4f4f4;
+  --muted-foreground: #525252;
+  --faint: #8d8d8d;
+  --border: #e0e0e0;
+  --input: #c6c6c6;
+  --sidebar: #e8e8e8;
+  --success: #24a148;
+  --success-soft: #defbe6;
+  --success-text: #0e6027;
+  --destructive: #da1e28;
+  --destructive-soft: #fff1f1;
+  --destructive-text: #a2191f;
+  --warning: #f1c21b;
+  --warning-soft: #fcf4d6;
+  --warning-text: #684e00;
+  --info-soft: #edf5ff;
+  --info-text: #0043ce;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-secondary: var(--secondary);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-faint: var(--faint);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-sidebar: var(--sidebar);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-text: var(--success-text);
+  --color-destructive: var(--destructive);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-text: var(--destructive-text);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-text: var(--warning-text);
+  --color-info-soft: var(--info-soft);
+  --color-info-text: var(--info-text);
+  --font-sans: var(--font-plex), -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-plex), -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* Selection must pin BOTH colors: on dark surfaces (billing hero, buttons)
+   white text on the near-white highlight would otherwise vanish. */
+::selection { background: #edf5ff; color: #161616; }
+
+@utility card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1.2px 2.7px rgba(0, 0, 0, 0.08), 0 0.2px 0.7px rgba(0, 0, 0, 0.06);
+}
+
+/* Landing marquee — seamless right-to-left scroll of shop types.
+   Track holds the list twice; sliding -50% loops with no visible seam. */
+@keyframes kadai-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee-mask {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: kadai-marquee 32s linear infinite;
+}
+.marquee-track:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}
