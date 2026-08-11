@@ -2,11 +2,13 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { setToken, get } from "@/lib/api"
+import { setToken } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
 
 /** Landing spot after Google OAuth: backend redirects here with #token=… */
 export default function AuthCallbackPage() {
   const router = useRouter()
+  const { refresh } = useAuth()
 
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.slice(1))
@@ -16,10 +18,10 @@ export default function AuthCallbackPage() {
       return
     }
     setToken(token)
-    get<{ onboarded: boolean }>("/auth/me")
-      .then((me) => router.replace(me.onboarded ? "/today" : "/onboarding"))
-      .catch(() => router.replace("/today"))
-  }, [router])
+    refresh().then((me) => {
+      router.replace(me?.onboarded ? "/today" : "/onboarding")
+    })
+  }, [refresh, router])
 
   return (
     <div className="h-dvh flex items-center justify-center">

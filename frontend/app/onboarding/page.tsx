@@ -7,6 +7,7 @@ import { cn, Button, Input, Field, FieldError } from "@/components/ui"
 import { post, patch } from "@/lib/api"
 import { toastError } from "@/components/toaster"
 import { phoneError, requiredError } from "@/lib/validate"
+import posthog from "posthog-js"
 
 const STEPS = ["Your shop", "Connect WhatsApp", "Test message"]
 
@@ -30,6 +31,7 @@ export default function OnboardingPage() {
     setBusy(true)
     try {
       await patch("/shop", form)
+      posthog.capture("onboarding_shop_saved", { business_type: form.business_type })
       setStep(2)
     } catch (e) {
       toastError(e instanceof Error ? e.message : "Couldn't save — try again")
@@ -44,6 +46,7 @@ export default function OnboardingPage() {
       // In production this opens Meta's Embedded Signup popup —
       // the seller approves once and lands back here, connected.
       await post("/onboarding/connect", { phone: form.phone })
+      posthog.capture("whatsapp_connected", { source: "onboarding" })
       setConnected(true)
       setTimeout(() => setStep(3), 700)
     } catch (e) {
@@ -57,6 +60,7 @@ export default function OnboardingPage() {
     setBusy(true)
     try {
       await patch("/shop", { onboarded: true })
+      posthog.capture("onboarding_completed")
       router.replace("/today")
     } catch (e) {
       toastError(e instanceof Error ? e.message : "Couldn't finish setup — try again")

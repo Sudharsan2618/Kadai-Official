@@ -8,6 +8,7 @@ import { cn, Chip, Avatar, Button, EmptyState, ErrorState, Input, timeAgo, timeS
 import { ChatListSkeleton, ThreadSkeleton } from "@/components/skeletons"
 import { get, post, subscribeEvents } from "@/lib/api"
 import { toast, toastError } from "@/components/toaster"
+import posthog from "posthog-js"
 
 function Ticks({ status }: { status: string }) {
   if (status === "read") return <CheckCheck size={13} className="text-primary" />
@@ -94,6 +95,7 @@ function ChatsInner() {
     setError("")
     try {
       await post(`/chats/${selectedId}/send`, { text: text.trim() })
+      posthog.capture("chat_message_sent", { message_type: "freeform" })
       setText("")
       loadThread(selectedId)
     } catch (e) {
@@ -111,6 +113,7 @@ function ChatsInner() {
     setError("")
     try {
       await post(`/chats/${selectedId}/send-ready`, { ready_message_id: rmId })
+      posthog.capture("ready_message_sent")
       loadThread(selectedId)
       toast("Ready message sent")
     } catch (e) {

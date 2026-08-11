@@ -9,6 +9,7 @@ import { TableSkeleton } from "@/components/skeletons"
 import { get, post } from "@/lib/api"
 import { toast, toastError } from "@/components/toaster"
 import { phoneError, requiredError } from "@/lib/validate"
+import posthog from "posthog-js"
 
 const PAGE_SIZE = 50
 
@@ -71,6 +72,7 @@ export default function CustomersPage() {
     setSaving(true)
     try {
       await post("/customers", form)
+      posthog.capture("customer_created", { has_area: Boolean(form.area.trim()) })
       toast(`${form.name.trim()} added`)
       setAdding(false)
       setForm({ name: "", phone: "", area: "" })
