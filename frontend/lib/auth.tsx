@@ -1,10 +1,12 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { get, post, setToken, clearToken, getToken } from "@/lib/api"
+import posthog from "posthog-js"
 
 export type User = { id: number; email: string; name: string; avatar_url: string; provider: string }
+type AuthMe = { user: User; onboarded?: boolean }
 
 type AuthState = {
   user: User | null
@@ -12,44 +14,65 @@ type AuthState = {
   signup: (email: string, password: string, name: string) => Promise<void>
   login: (email: string, password: string) => Promise<void>
   logout: () => void
-  refresh: () => Promise<void>
+  refresh: () => Promise<AuthMe | null>
 }
 
 const Ctx = createContext<AuthState | null>(null)
+
+function identifyUser(user: User) {
+  if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN || !process.env.NEXT_PUBLIC_POSTHOG_HOST) return
+
+  posthog.identify(String(user.id), {
+    email: user.email,
+    name: user.name,
+  })
+}
+
+function resetPostHog() {
+  if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN || !process.env.NEXT_PUBLIC_POSTHOG_HOST) return
+
+  posthog.reset()
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!getToken()) {
       setUser(null)
       setLoading(false)
-      return
+      return null
     }
     try {
-      const me = await get<{ user: User }>("/auth/me")
+      const me = await get<AuthMe>("/auth/me")
+      identifyUser(me.user)
       setUser(me.user)
+      return me
     } catch {
       setUser(null)
+      return null
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { void load() }, [load])
 
   const signup = async (email: string, password: string, name: string) => {
     const res = await post<{ token: string; user: User }>("/auth/signup", { email, password, name })
     setToken(res.token)
+    identifyUser(res.user)
     setUser(res.user)
   }
   const login = async (email: string, password: string) => {
     const res = await post<{ token: string; user: User }>("/auth/login", { email, password })
     setToken(res.token)
+    identifyUser(res.user)
     setUser(res.user)
   }
   const logout = () => {
+    resetPostHog()
     clearToken()
     setUser(null)
     window.location.href = "/login"

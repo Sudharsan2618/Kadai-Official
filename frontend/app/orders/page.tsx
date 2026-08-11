@@ -8,6 +8,7 @@ import { cn, Card, Chip, Button, Avatar, EmptyState, ErrorState, rupees, timeAgo
 import { TableSkeleton } from "@/components/skeletons"
 import { get, patch } from "@/lib/api"
 import { toast, toastError } from "@/components/toaster"
+import posthog from "posthog-js"
 
 const PAGE_SIZE = 50
 const FILTERS = ["all", "new", "packed", "payment_due", "paid", "delivered"]
@@ -64,6 +65,7 @@ export default function OrdersPage() {
     setSaving(true)
     try {
       await patch(`/orders/${order.id}`, { status })
+      posthog.capture("order_status_updated", { previous_status: order.status, status })
       toast(`Order #${order.id} → ${(ORDER_STATUS[status] || { label: status }).label}`)
       await load()
       setSelected((s: any) => (s && s.id === order.id ? { ...s, status } : s))

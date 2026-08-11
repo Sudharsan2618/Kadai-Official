@@ -9,6 +9,7 @@ import { cn, Card, Chip, Button, Avatar, EmptyState, ErrorState, timeAgo } from 
 import { CardsGridSkeleton, WizardStepSkeleton } from "@/components/skeletons"
 import { get, post, subscribeEvents } from "@/lib/api"
 import { toast, toastError } from "@/components/toaster"
+import posthog from "posthog-js"
 
 const TAG_FILTERS = ["all", "regular", "weekly box", "new"]
 const STEPS = ["Message", "Customers", "Send"]
@@ -85,6 +86,7 @@ function BroadcastInner() {
     setSending(true)
     try {
       const r = await post("/broadcasts", { ready_message_id: messageId, customer_ids: [...picked] })
+      posthog.capture("broadcast_sent", { recipient_count: r.recipients, audience_filter: tagFilter })
       toast(`Broadcast going out to ${r.recipients} customers`)
       setCreating(false)
       setStep(1)
@@ -102,6 +104,7 @@ function BroadcastInner() {
     setResendingId(broadcastId)
     try {
       const r = await post(`/broadcasts/${broadcastId}/resend-failed`)
+      posthog.capture("broadcast_resend_requested", { recipient_count: r.requeued })
       toast(r.requeued > 0 ? `Resending to ${r.requeued} customers` : "Nothing to resend")
       load()
     } catch (e) {
