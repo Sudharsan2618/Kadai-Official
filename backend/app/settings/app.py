@@ -1,7 +1,7 @@
 """Process-level settings: environment, HTTP surface, startup behaviour.
 
 These are the knobs that differ between a laptop and Cloud Run."""
-from pydantic import Field, field_validator
+from pydantic import Field
 
 from .base import SettingsGroup
 
@@ -23,9 +23,15 @@ class AppSettings(SettingsGroup):
     # Cloud Run collects stdout as structured entries when each line is JSON.
     json_logs: bool = Field(default=False, validation_alias="JSON_LOGS")
 
-    # Comma-separated list; the deployed frontend origin goes here.
-    cors_origins: list[str] = Field(default_factory=lambda: list(DEV_ORIGINS),
-                                    validation_alias="CORS_ORIGINS")
+    # Comma-separated origins; the deployed frontend origin goes here.
+    #
+    # Kept as a plain `str` on purpose. pydantic-settings treats list/dict
+    # fields as "complex" and runs json.loads() on the env value BEFORE any
+    # validator, so a `list[str]` here would crash at import on a normal
+    # comma-separated value ("https://app.example.com" is not JSON). Parsing
+    # happens in the cors_origins property below instead.
+    cors_origins_raw: str = Field(default=",".join(DEV_ORIGINS),
+                                  validation_alias="CORS_ORIGINS")
 
     # Startup work. Migrations are idempotent and cheap, so they stay on by
     # default; seeding writes demo data and must be opted into.
@@ -38,12 +44,9 @@ class AppSettings(SettingsGroup):
 
     frontend_url: str = Field(default="http://localhost:3010", validation_alias="FRONTEND_URL")
 
-    @field_validator("cors_origins", mode="before")
-    @classmethod
-    def _split_origins(cls, v):
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(",") if o.strip()]
-        return v
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins_raw.split(",") if o.strip()]
 
     @property
     def is_production(self) -> bool:
