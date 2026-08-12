@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   FileText, Plus, X, Pencil, Trash2, Store, MessageCircle, Globe2,
   ShieldCheck, RefreshCw, Send, AlertTriangle, CheckCircle2, Clock3,
@@ -25,6 +25,7 @@ type WaConfig = {
   verified: boolean
   waba_id: string
   token_expired: boolean
+  mm_terms_status?: string
 }
 
 const WA_GREEN = "#25D366"
@@ -54,7 +55,7 @@ function loadFbSdk(appId: string): Promise<void> {
   return new Promise((resolve) => {
     if (window.FB) return resolve()
     window.fbAsyncInit = () => {
-      window.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: "v21.0" })
+      window.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: "v25.0" })
       resolve()
     }
     const s = document.createElement("script")
@@ -75,6 +76,9 @@ export default function SettingsPage() {
   const [editing, setEditing] = useState<any | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const signupCode = useRef<string>("")
+  const signupAssets = useRef<{ waba_id?: string; phone_number_id?: string }>({})
+  const signupSubmitting = useRef(false)
 
   const load = useCallback(() => {
     get("/shop").then(setShop).catch(() => {})
@@ -86,6 +90,50 @@ export default function SettingsPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (!event.origin.endsWith("facebook.com")) return
+      let data: any
+      try { data = typeof event.data === "string" ? JSON.parse(event.data) : event.data } catch { return }
+      if (data?.type !== "WA_EMBEDDED_SIGNUP") return
+
+      const assets = data.data || {}
+      if (data.event === "CANCEL") {
+        signupCode.current = ""
+        signupAssets.current = {}
+        signupSubmitting.current = false
+        setConnecting(false)
+        toastError(assets.error_message || `Meta signup was cancelled${assets.current_step ? ` at ${assets.current_step}` : ""}`)
+        return
+      }
+      if (assets.waba_id || assets.phone_number_id) {
+        signupAssets.current = {
+          waba_id: assets.waba_id,
+          phone_number_id: assets.phone_number_id,
+        }
+        finishSignup()
+      }
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  })
+
+  const finishSignup = () => {
+    const code = signupCode.current
+    const assets = signupAssets.current
+    if (!code || !assets.waba_id || !assets.phone_number_id || signupSubmitting.current) return
+    signupSubmitting.current = true
+    post("/onboarding/connect", { code, ...assets, path: "fresh" })
+      .then(() => { toast("WhatsApp connected — you're live"); load() })
+      .catch((e) => toastError(e instanceof Error ? e.message : "Couldn't connect"))
+      .finally(() => {
+        signupCode.current = ""
+        signupAssets.current = {}
+        signupSubmitting.current = false
+        setConnecting(false)
+      })
+  }
 
   const [rmErrors, setRmErrors] = useState<{ label?: string; body?: string }>({})
 
@@ -145,19 +193,20 @@ export default function SettingsPage() {
           toastError("Meta app isn't configured yet — set META_APP_ID / META_ES_CONFIG_ID")
           return
         }
+        signupCode.current = ""
+        signupAssets.current = {}
+        signupSubmitting.current = false
         await loadFbSdk(waCfg.app_id)
         window.FB.login((resp: any) => {
           const code = resp?.authResponse?.code
-          if (!code) { toastError("Meta signup was cancelled"); setConnecting(false); return }
-          post("/onboarding/connect", { code })
-            .then(() => { toast("WhatsApp connected — you're live"); load() })
-            .catch((e) => toastError(e instanceof Error ? e.message : "Couldn't connect"))
-            .finally(() => setConnecting(false))
+          if (!code) { toastError("Meta signup did not return an authorization code"); setConnecting(false); return }
+          signupCode.current = code
+          finishSignup()
         }, {
           config_id: waCfg.config_id,
           response_type: "code",
           override_default_response_type: true,
-          extras: { setup: {}, sessionInfoVersion: "3" },
+          extras: { setup: {}, sessionInfoVersion: "3", version: "v4" },
         })
         return // FB.login is async via callback
       }

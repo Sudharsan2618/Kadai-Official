@@ -56,3 +56,6 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+
+# ── Research cache ──
+.firecrawl/

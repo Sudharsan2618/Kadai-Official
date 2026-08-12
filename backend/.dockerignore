@@ -1,0 +1,26 @@
+# Keep the build context to source + requirements.
+.env
+.env.*
+!.env.example
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+*.db
+*.sqlite3
+*.log
+
+.git/
+.gitignore
+Dockerfile
+.dockerignore
+README.md
+deploy/

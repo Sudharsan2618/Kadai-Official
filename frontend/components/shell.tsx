@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import {
   Sun, MessageCircle, Megaphone, ShoppingCart, Users, Package, Settings,
   CreditCard, LogOut, PanelLeftClose, PanelLeftOpen, MoreHorizontal, X, Compass,
+  Smartphone, FileText, BarChart3, Wallet, TrendingUp,
 } from "lucide-react"
 import { cn, Dot } from "@/components/ui"
 import { get } from "@/lib/api"
@@ -21,13 +22,23 @@ const NAV = [
   { href: "/catalog", label: "Catalog", icon: Package },
 ]
 
+/* Platform — the WhatsApp/Meta surface. Design previews on mock data today;
+   scoped in docs/PRODUCT-SCOPE-2026.md and tracked as GitHub issues. */
+const PLATFORM = [
+  { href: "/connect", label: "Connect", icon: Smartphone },
+  { href: "/templates", label: "Templates", icon: FileText },
+  { href: "/insights", label: "Insights", icon: BarChart3 },
+  { href: "/payments", label: "Payments", icon: Wallet },
+  { href: "/growth", label: "Grow", icon: TrendingUp },
+]
+
 const SECONDARY = [
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/billing", label: "Billing", icon: CreditCard },
 ]
 
 const MOBILE_TABS = NAV.slice(0, 4)
-const MOBILE_MORE = [...NAV.slice(4), ...SECONDARY]
+const MOBILE_MORE = [...NAV.slice(4), ...PLATFORM, ...SECONDARY]
 
 export function Shell({ children, title, actions }: {
   children: ReactNode
@@ -107,6 +118,33 @@ export function Shell({ children, title, actions }: {
               </Link>
             )
           })}
+
+          {/* Platform group — the Meta/WhatsApp surface */}
+          <div className={cn("mt-3 pt-2 border-t border-white/60 mx-1.5", collapsed && "mx-1")}>
+            {!collapsed && (
+              <p className="text-[10px] uppercase tracking-wide text-faint px-2.5 pb-1">
+                WhatsApp
+              </p>
+            )}
+            {PLATFORM.map(({ href, label, icon: Icon }) => {
+              const active = pathname.startsWith(href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  title={label}
+                  className={cn(
+                    "flex items-center gap-2.5 my-0.5 rounded-md text-sm transition-colors",
+                    collapsed ? "justify-center px-0 py-2" : "px-2.5 py-1.5",
+                    active ? "bg-white text-primary font-semibold shadow-xs" : "text-muted-foreground hover:bg-white/60",
+                  )}
+                >
+                  <Icon size={17} className="shrink-0" />
+                  {!collapsed && <span>{label}</span>}
+                </Link>
+              )
+            })}
+          </div>
         </nav>
 
         <div className="pb-2">
@@ -199,7 +237,7 @@ export function Shell({ children, title, actions }: {
           </Link>
         )}
 
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-[#fafafa] pb-16 md:pb-0">{children}</main>
       </div>
 
       {/* Mobile bottom tabs */}

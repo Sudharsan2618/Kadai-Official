@@ -1,12 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Check, MessageCircle, Store, Send } from "lucide-react"
 import { cn, Button, Input, Field, FieldError } from "@/components/ui"
-import { post, patch } from "@/lib/api"
+import { get, post, patch } from "@/lib/api"
 import { toastError } from "@/components/toaster"
 import { phoneError, requiredError } from "@/lib/validate"
+
+declare global {
+  interface Window { FB?: any; fbAsyncInit?: () => void }
+}
 
 const STEPS = ["Your shop", "Connect WhatsApp", "Test message"]
 
@@ -17,8 +21,60 @@ export default function OnboardingPage() {
   const [busy, setBusy] = useState(false)
   const [connected, setConnected] = useState(false)
   const [testSent, setTestSent] = useState(false)
+  const [waCfg, setWaCfg] = useState<any | null>(null)
+  const codeRef = useRef("")
+  const assetsRef = useRef<{ waba_id?: string; phone_number_id?: string }>({})
 
   const [errors, setErrors] = useState<{ name?: string; phone?: string }>({})
+
+  useEffect(() => { get("/wa/config").then(setWaCfg).catch(() => {}) }, [])
+
+  const loadFbSdk = () => new Promise<void>((resolve) => {
+    if (window.FB) return resolve()
+    window.fbAsyncInit = () => {
+      window.FB?.init({ appId: waCfg.app_id, autoLogAppEvents: true, xfbml: false, version: "v25.0" })
+      resolve()
+    }
+    const script = document.createElement("script")
+    script.src = "https://connect.facebook.net/en_US/sdk.js"
+    script.async = true
+    script.defer = true
+    document.body.appendChild(script)
+  })
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (!event.origin.endsWith("facebook.com")) return
+      let data: any
+      try { data = typeof event.data === "string" ? JSON.parse(event.data) : event.data } catch { return }
+      if (data?.type !== "WA_EMBEDDED_SIGNUP") return
+      if (data.event === "CANCEL") {
+        setBusy(false)
+        toastError(data.data?.error_message || "Meta signup was cancelled")
+        return
+      }
+      const assets = data.data || {}
+      if (assets.waba_id || assets.phone_number_id) {
+        assetsRef.current = { waba_id: assets.waba_id, phone_number_id: assets.phone_number_id }
+        completeCloudConnect()
+      }
+    }
+    window.addEventListener("message", onMessage)
+    return () => window.removeEventListener("message", onMessage)
+  })
+
+  const completeCloudConnect = async () => {
+    if (!codeRef.current || !assetsRef.current.waba_id || !assetsRef.current.phone_number_id) return
+    try {
+      await post("/onboarding/connect", { code: codeRef.current, ...assetsRef.current, path: "fresh" })
+      setConnected(true)
+      setTimeout(() => setStep(3), 700)
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "Couldn't connect — try again")
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const saveShop = async () => {
     const errs = {
@@ -41,8 +97,24 @@ export default function OnboardingPage() {
   const connect = async () => {
     setBusy(true)
     try {
-      // In production this opens Meta's Embedded Signup popup —
-      // the seller approves once and lands back here, connected.
+      if (waCfg?.mode === "cloud") {
+        if (!waCfg.app_id || !waCfg.config_id) throw new Error("Meta Embedded Signup is not configured")
+        codeRef.current = ""
+        assetsRef.current = {}
+        await loadFbSdk()
+        window.FB.login((response: any) => {
+          const code = response?.authResponse?.code
+          if (!code) { setBusy(false); toastError("Meta signup did not return an authorization code"); return }
+          codeRef.current = code
+          completeCloudConnect()
+        }, {
+          config_id: waCfg.config_id,
+          response_type: "code",
+          override_default_response_type: true,
+          extras: { setup: {}, sessionInfoVersion: "3", version: "v4" },
+        })
+        return
+      }
       await post("/onboarding/connect", { phone: form.phone })
       setConnected(true)
       setTimeout(() => setStep(3), 700)

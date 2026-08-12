@@ -1,0 +1,54 @@
+"""Process-level settings: environment, HTTP surface, startup behaviour.
+
+These are the knobs that differ between a laptop and Cloud Run."""
+from pydantic import Field, field_validator
+
+from .base import SettingsGroup
+
+DEV_ORIGINS = [
+    "http://localhost:3010",
+    "http://127.0.0.1:3010",
+    "http://localhost:3000",
+]
+
+
+class AppSettings(SettingsGroup):
+    name: str = Field(default="Kadai API", validation_alias="APP_NAME")
+    version: str = Field(default="0.2.0", validation_alias="APP_VERSION")
+    # local | staging | production — production turns off the docs and the seeder.
+    env: str = Field(default="local", validation_alias="APP_ENV")
+    # Cloud Run injects PORT; 8010 is what the frontend defaults to locally.
+    port: int = Field(default=8010, validation_alias="PORT")
+    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    # Cloud Run collects stdout as structured entries when each line is JSON.
+    json_logs: bool = Field(default=False, validation_alias="JSON_LOGS")
+
+    # Comma-separated list; the deployed frontend origin goes here.
+    cors_origins: list[str] = Field(default_factory=lambda: list(DEV_ORIGINS),
+                                    validation_alias="CORS_ORIGINS")
+
+    # Startup work. Migrations are idempotent and cheap, so they stay on by
+    # default; seeding writes demo data and must be opted into.
+    run_migrations: bool = Field(default=True, validation_alias="RUN_MIGRATIONS")
+    seed_demo_data: bool = Field(default=False, validation_alias="SEED_DEMO_DATA")
+
+    # Demo login the seeder creates and the migration adopts orphan shops under.
+    demo_email: str = Field(default="demo@kadai.shop", validation_alias="DEMO_EMAIL")
+    demo_password: str = Field(default="demo1234", validation_alias="DEMO_PASSWORD")
+
+    frontend_url: str = Field(default="http://localhost:3010", validation_alias="FRONTEND_URL")
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, v):
+        if isinstance(v, str):
+            return [o.strip() for o in v.split(",") if o.strip()]
+        return v
+
+    @property
+    def is_production(self) -> bool:
+        return self.env.lower() in ("production", "prod")
+
+    @property
+    def docs_url(self) -> str | None:
+        return None if self.is_production else "/docs"
