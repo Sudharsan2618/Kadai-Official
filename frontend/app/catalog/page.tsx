@@ -8,6 +8,7 @@ import { CardsGridSkeleton } from "@/components/skeletons"
 import { get, post, patch } from "@/lib/api"
 import { toast, toastError } from "@/components/toaster"
 import { requiredError, priceError } from "@/lib/validate"
+import posthog from "posthog-js"
 
 export default function CatalogPage() {
   const [products, setProducts] = useState<any[]>([])
@@ -29,6 +30,7 @@ export default function CatalogPage() {
     setProducts((rows) => rows.map((r) => (r.id === p.id ? { ...r, in_stock: !r.in_stock } : r)))
     try {
       await patch(`/products/${p.id}`, { in_stock: !p.in_stock })
+      posthog.capture("product_stock_toggled", { in_stock: !p.in_stock, unit: p.unit })
       toast(`${p.name} marked ${p.in_stock ? "out of stock" : "in stock"}`)
     } catch {
       toastError("Couldn't update stock")
@@ -39,6 +41,7 @@ export default function CatalogPage() {
   const updatePrice = async (p: any, price: number) => {
     try {
       await patch(`/products/${p.id}`, { price })
+      posthog.capture("product_price_updated", { price, unit: p.unit })
       toast(`${p.name} price updated`)
     } catch (e) {
       toastError(e instanceof Error ? e.message : "Couldn't update price")
@@ -56,6 +59,7 @@ export default function CatalogPage() {
     setSaving(true)
     try {
       await post("/products", { name: form.name.trim(), price: Number(form.price), unit: form.unit })
+      posthog.capture("product_created", { price: Number(form.price), unit: form.unit })
       toast(`${form.name.trim()} added to catalog`)
       setAdding(false)
       setForm({ name: "", price: "", unit: "kg" })

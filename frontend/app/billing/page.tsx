@@ -8,6 +8,7 @@ import { SettingsSkeleton } from "@/components/skeletons"
 import { get, post } from "@/lib/api"
 import { toast, toastError } from "@/components/toaster"
 import { useAuth } from "@/lib/auth"
+import posthog from "posthog-js"
 
 declare global {
   interface Window { Razorpay?: any }
@@ -109,6 +110,7 @@ export default function BillingPage() {
     setPaying(true)
     try {
       const order = await post<{ order_id: string; amount: number; currency: string; razorpay_key_id: string; plan_name: string }>("/billing/checkout")
+      posthog.capture("subscription_checkout_started", { amount: order.amount, currency: order.currency })
       const rzp = new window.Razorpay({
         key: order.razorpay_key_id,
         amount: order.amount,
@@ -125,6 +127,7 @@ export default function BillingPage() {
               razorpay_payment_id: resp.razorpay_payment_id,
               razorpay_signature: resp.razorpay_signature,
             })
+            posthog.capture("subscription_payment_completed", { amount: order.amount, currency: order.currency })
             toast("Payment successful — your plan is active")
             load()
           } catch (e) {
@@ -146,6 +149,7 @@ export default function BillingPage() {
     if (!window.confirm("Cancel your plan? You'll keep access until the end of the paid period.")) return
     try {
       await post("/billing/cancel")
+      posthog.capture("subscription_cancellation_requested")
       toast("Plan will end at the end of this period")
       load()
     } catch (e) {
