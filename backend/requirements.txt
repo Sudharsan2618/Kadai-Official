@@ -1,4 +1,9 @@
 fastapi==0.115.*
+# Pinned deliberately: FastAPI 0.115 requires starlette >=0.40,<0.42, but pip
+# will happily install starlette 1.x if something else asks for it. Starlette 1.0
+# dropped `on_startup`/`on_shutdown` from Router.__init__, which FastAPI 0.115
+# still passes — the app then dies at import with a TypeError.
+starlette>=0.40,<0.42
 uvicorn[standard]==0.32.*
 sqlalchemy==2.0.*
 psycopg2-binary==2.9.*

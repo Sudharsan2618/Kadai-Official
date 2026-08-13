@@ -1,5 +1,14 @@
 # Kadai — Completion Tracker (UI 75% → 100%, Backend 65% → 100%)
 
+> # ⚠️ HISTORICAL — this pass is finished
+>
+> **Closed 8 Aug 2026.** Every item below shipped, and the backend has since been
+> restructured into `backend/app/`, so the file references are stale. Kept as a
+> record of what "done" meant for that milestone.
+>
+> Current status lives in **`STATE-OF-THE-CODEBASE.md`**; the forward backlog is
+> **`PRODUCT-SCOPE-2026.md`**.
+
 > First-priority gap-closure plan. Tamil i18n is explicitly DEFERRED (scaffold
 > exists in `lib/i18n.ts`; only English ships now). Check items off as they land.
 

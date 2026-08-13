@@ -37,23 +37,29 @@ ordered by how directly it serves that.
 
 ## P0 — Launch blockers
 
-| ID | Item | Why | Effort | Mock screen |
-|---|---|---|---|---|
-| **[K-01](https://github.com/Sudharsan2618/Kadai-Official/issues/1)** | **Embedded Signup v4 migration** | v2 dies 15 Oct 2026. v4 is config-driven and onboards Cloud API + MM API in one flow | M | `/connect` |
-| **[K-02](https://github.com/Sudharsan2618/Kadai-Official/issues/2)** | **Coexistence onboarding** | The wedge. Seller keeps app + number + history; Meta kills their broadcast lists | L | `/connect` |
-| **[K-03](https://github.com/Sudharsan2618/Kadai-Official/issues/3)** | **Hosted Embedded Signup fallback** | Zero-integration URL; unblocks sales demos and rescues failed JS flows | S | `/connect` |
-| **[K-04](https://github.com/Sudharsan2618/Kadai-Official/issues/4)** | **Sandbox mode** | 30-day test account; onboarding handshake testable without real assets | S | `/connect` |
-| **[K-05](https://github.com/Sudharsan2618/Kadai-Official/issues/5)** | **Seller payment-method step** | Tech Provider reality: no card, no sending. Must be a guided, tracked step | S | `/connect` |
-| **[K-06](https://github.com/Sudharsan2618/Kadai-Official/issues/6)** | **Onboarding state machine** | `code_exchanged → subscribed → registered → payment_added → live`, each retryable | M | `/connect` |
-| **[K-07](https://github.com/Sudharsan2618/Kadai-Official/issues/7)** | **Template Library adoption** | Pre-approved utility templates = seller live in minutes, no review wait | M | `/templates` |
-| **[K-08](https://github.com/Sudharsan2618/Kadai-Official/issues/8)** | **Opt-out handling (`user_preferences`)** | Legal + quality. `stop`/`resume` must suppress marketing sends permanently | M | `/templates`, `/insights` |
-| **[K-09](https://github.com/Sudharsan2618/Kadai-Official/issues/9)** | **Opt-in capture and proof** | Meta requires demonstrable opt-in per contact | M | `/insights` |
-| **[K-10](https://github.com/Sudharsan2618/Kadai-Official/issues/10)** | **Messaging-limit awareness** | Sellers start at 250 unique recipients / 24h. Must show it, pace within it, never silently fail | M | `/insights` |
-| **[K-11](https://github.com/Sudharsan2618/Kadai-Official/issues/11)** | **Account-health webhooks** | `phone_number_quality_update`, `account_alerts`, `account_review_update`, `business_capability_update` | M | `/insights` |
-| **[K-12](https://github.com/Sudharsan2618/Kadai-Official/issues/12)** | **Per-user marketing limit handling (131049)** | Adaptive per-recipient cap. Never retry inside 24h; prefer in-window sends | M | `/insights` |
-| **[K-13](https://github.com/Sudharsan2618/Kadai-Official/issues/13)** | **Graph API version bump v21 → v25** | We are four versions stale | S | — |
+| ID | Item | Why | Effort | Mock screen | Status |
+|---|---|---|---|---|---|
+| **[K-01](https://github.com/Sudharsan2618/Kadai-Official/issues/1)** | **Embedded Signup v4 migration** | v2 dies 15 Oct 2026. v4 is config-driven and onboards Cloud API + MM API in one flow | M | `/connect` | **Built** |
+| **[K-02](https://github.com/Sudharsan2618/Kadai-Official/issues/2)** | **Coexistence onboarding** | The wedge. Seller keeps app + number + history; Meta kills their broadcast lists | L | `/connect` | **Built** (needs live test) |
+| **[K-03](https://github.com/Sudharsan2618/Kadai-Official/issues/3)** | **Hosted Embedded Signup fallback** | Zero-integration URL; unblocks sales demos and rescues failed JS flows | S | `/connect` | Partial — URL in UI |
+| **[K-04](https://github.com/Sudharsan2618/Kadai-Official/issues/4)** | **Sandbox mode** | 30-day test account; onboarding handshake testable without real assets | S | `/connect` | Partial — claimed, not wired |
+| **[K-05](https://github.com/Sudharsan2618/Kadai-Official/issues/5)** | **Seller payment-method step** | Tech Provider reality: no card, no sending. Must be a guided, tracked step | S | `/connect` | Not started |
+| **[K-06](https://github.com/Sudharsan2618/Kadai-Official/issues/6)** | **Onboarding state machine** | `code_exchanged → subscribed → registered → payment_added → live`, each retryable | M | `/connect` | Partial |
+| **[K-07](https://github.com/Sudharsan2618/Kadai-Official/issues/7)** | **Template Library adoption** | Pre-approved utility templates = seller live in minutes, no review wait | M | `/templates` | Preview only |
+| **[K-08](https://github.com/Sudharsan2618/Kadai-Official/issues/8)** | **Opt-out handling (`user_preferences`)** | Legal + quality. `stop`/`resume` must suppress marketing sends permanently | M | `/templates`, `/insights` | Not started |
+| **[K-09](https://github.com/Sudharsan2618/Kadai-Official/issues/9)** | **Opt-in capture and proof** | Meta requires demonstrable opt-in per contact | M | `/insights` | Not started |
+| **[K-10](https://github.com/Sudharsan2618/Kadai-Official/issues/10)** | **Messaging-limit awareness** | Sellers start at 250 unique recipients / 24h. Must show it, pace within it, never silently fail | M | `/insights` | Not started |
+| **[K-11](https://github.com/Sudharsan2618/Kadai-Official/issues/11)** | **Account-health webhooks** | `phone_number_quality_update`, `account_alerts`, `account_review_update`, `business_capability_update` | M | `/insights` | Partial — `account_update` |
+| **[K-12](https://github.com/Sudharsan2618/Kadai-Official/issues/12)** | **Per-user marketing limit handling (131049)** | Adaptive per-recipient cap. Never retry inside 24h; prefer in-window sends | M | `/insights` | Not started |
+| **[K-13](https://github.com/Sudharsan2618/Kadai-Official/issues/13)** | **Graph API version bump v21 → v25** | We are four versions stale | S | — | **Done** |
 
 ### Notes on the P0 set
+
+> **Status refreshed 8 Aug 2026** against the working tree. K-01, K-02, K-13 and
+> K-14 are built; the remaining P0 blockers for a real seller going live are
+> **K-05** (payment method) and the two onboarding gaps recorded as G1/G2 in
+> `STATE-OF-THE-CODEBASE.md` — the "send a test message" step is currently a
+> no-op in the UI with no endpoint behind it.
 
 **K-02 is the most valuable item in this document.** It is also the largest.
 Constraints that must be designed in from the start: coexisting numbers are
@@ -74,25 +80,25 @@ account and a throttled then banned one.
 
 ## P1 — Core product value
 
-| ID | Item | Why | Effort | Mock screen |
-|---|---|---|---|---|
-| **[K-14](https://github.com/Sudharsan2618/Kadai-Official/issues/14)** | **MM API for WhatsApp send path** | Up to 9% more delivered (Meta's own India test), GIF headers, TTL 12h–30d, benchmarks, conversion metrics, max-price | M | `/insights`, broadcast |
-| **[K-15](https://github.com/Sudharsan2618/Kadai-Official/issues/15)** | **Template + pricing analytics** | Sent/delivered/read/**clicked**, cost per delivered, volume-tier progress | M | `/insights` |
-| **[K-16](https://github.com/Sudharsan2618/Kadai-Official/issues/16)** | **Interactive reply buttons + lists** | Our end customers should tap, not type. Decisive for low-literacy users | S | broadcast, chats |
-| **[K-17](https://github.com/Sudharsan2618/Kadai-Official/issues/17)** | **Location request messages** | "Send your delivery address" as a native tap | S | chats |
-| **[K-18](https://github.com/Sudharsan2618/Kadai-Official/issues/18)** | **WhatsApp Catalog sync** | Kadai Product → Meta catalog item | M | `/growth` |
-| **[K-19](https://github.com/Sudharsan2618/Kadai-Official/issues/19)** | **Multi-product messages** | "Today's stock" as a real product list, up to 30 items | M | `/growth` |
-| **[K-20](https://github.com/Sudharsan2618/Kadai-Official/issues/20)** | **Cart order webhook → Kadai Order** | Customer builds a cart in chat; it lands as an order | M | `/growth` |
-| **[K-21](https://github.com/Sudharsan2618/Kadai-Official/issues/21)** | **India Payments — `order_details` + Razorpay deep integration** | We already run Razorpay. Native UPI/cards/netbanking, refunds and payment status via WhatsApp | L | `/payments` |
-| **[K-22](https://github.com/Sudharsan2618/Kadai-Official/issues/22)** | **`order_status` template** | Post-payment updates | S | `/payments` |
-| **[K-23](https://github.com/Sudharsan2618/Kadai-Official/issues/23)** | **Business Compliance API** | Legally required for Indian sellers selling online | S | `/payments` |
-| **[K-24](https://github.com/Sudharsan2618/Kadai-Official/issues/24)** | **Ice breakers + commands** | 4 tappable prompts on first contact. One POST. Enormous perceived polish | S | `/growth` |
-| **[K-25](https://github.com/Sudharsan2618/Kadai-Official/issues/25)** | **QR code / wa.me deep link** | Printable "scan to order" for the shop counter | S | `/growth` |
-| **[K-26](https://github.com/Sudharsan2618/Kadai-Official/issues/26)** | **Business profile management** | About, address, hours, photo, vertical | S | `/growth` |
-| **[K-27](https://github.com/Sudharsan2618/Kadai-Official/issues/27)** | **Campaign scheduler** | Competitors gate this behind their ₹3,200 tier | M | broadcast |
-| **[K-28](https://github.com/Sudharsan2618/Kadai-Official/issues/28)** | **Free Entry Point exploitation** | 72h of free messaging after a CTWA-originated reply. Pure margin | S | `/insights` |
-| **[K-29](https://github.com/Sudharsan2618/Kadai-Official/issues/29)** | **Multi-Partner Solution (credit line + 200/week)** | Removes the "add a card" cliff **and** lifts onboarding from 10 to 200 sellers/week. The Partner Solutions panel is already live in our dashboard; blocked only on a Solution Partner's app ID. Code is small: `partner_solutions` webhook + solution ID in the ES config | **S (code) / L (deal)** | `/connect` |
-| **[K-30](https://github.com/Sudharsan2618/Kadai-Official/issues/30)** | **Tamil UI** | `lib/i18n.ts` scaffold exists. No competitor has it | M | all |
+| ID | Item | Why | Effort | Mock screen | Status |
+|---|---|---|---|---|---|
+| **[K-14](https://github.com/Sudharsan2618/Kadai-Official/issues/14)** | **MM API for WhatsApp send path** | Up to 9% more delivered (Meta's own India test), GIF headers, TTL 12h–30d, benchmarks, conversion metrics, max-price | M | `/insights`, broadcast | **Built** |
+| **[K-15](https://github.com/Sudharsan2618/Kadai-Official/issues/15)** | **Template + pricing analytics** | Sent/delivered/read/**clicked**, cost per delivered, volume-tier progress | M | `/insights` | Preview only |
+| **[K-16](https://github.com/Sudharsan2618/Kadai-Official/issues/16)** | **Interactive reply buttons + lists** | Our end customers should tap, not type. Decisive for low-literacy users | S | broadcast, chats | Not started |
+| **[K-17](https://github.com/Sudharsan2618/Kadai-Official/issues/17)** | **Location request messages** | "Send your delivery address" as a native tap | S | chats | Not started |
+| **[K-18](https://github.com/Sudharsan2618/Kadai-Official/issues/18)** | **WhatsApp Catalog sync** | Kadai Product → Meta catalog item | M | `/growth` | Not started |
+| **[K-19](https://github.com/Sudharsan2618/Kadai-Official/issues/19)** | **Multi-product messages** | "Today's stock" as a real product list, up to 30 items | M | `/growth` | Not started |
+| **[K-20](https://github.com/Sudharsan2618/Kadai-Official/issues/20)** | **Cart order webhook → Kadai Order** | Customer builds a cart in chat; it lands as an order | M | `/growth` | Not started |
+| **[K-21](https://github.com/Sudharsan2618/Kadai-Official/issues/21)** | **India Payments — `order_details` + Razorpay deep integration** | We already run Razorpay. Native UPI/cards/netbanking, refunds and payment status via WhatsApp | L | `/payments` | Not started |
+| **[K-22](https://github.com/Sudharsan2618/Kadai-Official/issues/22)** | **`order_status` template** | Post-payment updates | S | `/payments` | Not started |
+| **[K-23](https://github.com/Sudharsan2618/Kadai-Official/issues/23)** | **Business Compliance API** | Legally required for Indian sellers selling online | S | `/payments` | Not started |
+| **[K-24](https://github.com/Sudharsan2618/Kadai-Official/issues/24)** | **Ice breakers + commands** | 4 tappable prompts on first contact. One POST. Enormous perceived polish | S | `/growth` | Not started |
+| **[K-25](https://github.com/Sudharsan2618/Kadai-Official/issues/25)** | **QR code / wa.me deep link** | Printable "scan to order" for the shop counter | S | `/growth` | Not started |
+| **[K-26](https://github.com/Sudharsan2618/Kadai-Official/issues/26)** | **Business profile management** | About, address, hours, photo, vertical | S | `/growth` | Not started |
+| **[K-27](https://github.com/Sudharsan2618/Kadai-Official/issues/27)** | **Campaign scheduler** | Competitors gate this behind their ₹3,200 tier | M | broadcast | Not started |
+| **[K-28](https://github.com/Sudharsan2618/Kadai-Official/issues/28)** | **Free Entry Point exploitation** | 72h of free messaging after a CTWA-originated reply. Pure margin | S | `/insights` | Not started |
+| **[K-29](https://github.com/Sudharsan2618/Kadai-Official/issues/29)** | **Multi-Partner Solution (credit line + 200/week)** | Removes the "add a card" cliff **and** lifts onboarding from 10 to 200 sellers/week. The Partner Solutions panel is already live in our dashboard; blocked only on a Solution Partner's app ID. Code is small: `partner_solutions` webhook + solution ID in the ES config | **S (code) / L (deal)** | `/connect` | Blocked — needs partner |
+| **[K-30](https://github.com/Sudharsan2618/Kadai-Official/issues/30)** | **Tamil UI** | `lib/i18n.ts` scaffold exists. No competitor has it | M | all | Scaffold only |
 
 ---
 

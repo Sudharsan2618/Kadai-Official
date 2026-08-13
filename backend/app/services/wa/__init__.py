@@ -31,6 +31,12 @@ def start_broadcast(broadcast_id: int) -> None:
     return _engine().start_broadcast(broadcast_id)
 
 
+def send_test_message(db, shop, phone: str) -> dict:
+    """Onboarding's proof-of-life send. Both engines implement it so the last
+    step of signup completes in demo mode as well as production."""
+    return _engine().send_test_message(db, shop, phone)
+
+
 def requeue_failed(db, broadcast_id: int) -> int:
     """Mark failed recipients queued again; the caller then start_broadcast()s.
     Pure DB work — identical for both engines, so it lives here."""
@@ -45,4 +51,5 @@ def requeue_failed(db, broadcast_id: int) -> int:
     return len(failed)
 
 
-__all__ = ["send_message", "start_broadcast", "requeue_failed", "WaError", "WaBlocked"]
+__all__ = ["send_message", "start_broadcast", "send_test_message", "requeue_failed",
+           "WaError", "WaBlocked"]

@@ -12,7 +12,7 @@ from app.core.events import publish
 from app.db.session import SessionLocal
 from app.models import Shop
 from app.services.wa.cloud.client import (app_token, graph, require_connected,
-                                          shop_token)
+                                          shop_token, to_e164)
 from app.services.wa.errors import (ALREADY_REGISTERED_CODE, HISTORY_DECLINED_CODE,
                                     WaBlocked, WaError)
 from app.settings import settings
@@ -20,6 +20,11 @@ from app.settings import settings
 log = logging.getLogger(__name__)
 
 MM_SIGNED_STATUSES = {"ONBOARDED", "TERM_OF_SERVICE_SIGNED"}
+
+# Meta seeds every new WABA with this template, so it is the one thing we can
+# always send before the seller has approved anything of their own.
+DEFAULT_TEST_TEMPLATE = "hello_world"
+DEFAULT_TEST_LANGUAGE = "en_US"
 
 
 # ── Number registration (2FA PIN) ───────────────────────────────────────────
@@ -134,6 +139,42 @@ def connect_embedded_signup(db, shop: Shop, code: str,
     return {"connected": True, "wa_number": shop.wa_number, "waba_id": waba_id,
             "phone_number_id": phone_number_id, "verified": shop.wa_verified,
             "coexist": shop.wa_is_on_biz_app, "pin": pin}
+
+
+# ── Onboarding proof: send one real message to the seller's own phone ───────
+def send_test_message(db, shop: Shop, phone: str) -> dict:
+    """The last step of onboarding: prove the pipe works, end to end.
+
+    Deliberately NOT routed through send_message(). That path needs a Customer
+    row and an approved ready-message template, and at the end of onboarding the
+    seller has neither. This sends Meta's built-in `hello_world` template — the
+    one template that exists on every WABA from day one — straight to whichever
+    phone the seller is holding.
+
+    Nothing is persisted as a Message: this is a diagnostic, not a conversation,
+    and inventing a Customer for it would pollute the seller's contact list."""
+    require_connected(shop)
+    to = to_e164(phone)
+    if not to or len(to) < 10:
+        raise WaBlocked("Enter the WhatsApp number you want the test sent to")
+    # WhatsApp refuses a business number messaging itself, and the error Meta
+    # returns for it is opaque — catch it here where we can explain it.
+    if to == to_e164(shop.wa_number):
+        raise WaBlocked(
+            "That's the shop's own WhatsApp number — send the test to a different "
+            "phone, like your personal number")
+
+    payload = {
+        "messaging_product": "whatsapp", "recipient_type": "individual", "to": to,
+        "type": "template",
+        "template": {"name": DEFAULT_TEST_TEMPLATE,
+                     "language": {"code": DEFAULT_TEST_LANGUAGE}},
+    }
+    resp = graph("POST", f"/{shop.phone_number_id}/messages", shop_token(shop), payload)
+    wamid = (resp.get("messages") or [{}])[0].get("id", "")
+    log.info("shop %s: onboarding test message sent (%s)", shop.id, wamid or "no wamid")
+    return {"sent": True, "wamid": wamid, "to": to,
+            "template": DEFAULT_TEST_TEMPLATE}
 
 
 # ── Coexistence: pull contacts + history within 24h (K-02) ─────────────────

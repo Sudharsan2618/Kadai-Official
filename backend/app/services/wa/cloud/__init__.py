@@ -12,7 +12,8 @@ changes."""
 from app.services.wa.cloud.client import graph, require_connected, shop_token
 from app.services.wa.cloud.messaging import send_message, start_broadcast
 from app.services.wa.cloud.signup import (connect_embedded_signup, get_mm_status,
-                                          register_number, start_coexistence_sync)
+                                          register_number, send_test_message,
+                                          start_coexistence_sync)
 from app.services.wa.cloud.templates import (approved_template, submit_template,
                                              sync_template_status, to_meta_body)
 from app.services.wa.errors import WaBlocked, WaError
@@ -21,6 +22,7 @@ from app.services.wa.phones import to_e164, to_local
 __all__ = [
     "send_message", "start_broadcast",
     "connect_embedded_signup", "register_number", "start_coexistence_sync", "get_mm_status",
+    "send_test_message",
     "submit_template", "sync_template_status", "approved_template", "to_meta_body",
     "graph", "shop_token", "require_connected", "to_e164", "to_local",
     "WaError", "WaBlocked",

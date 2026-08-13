@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import cloud_mode_only, current_shop
 from app.db.session import get_db
 from app.models import ReadyMessage, Shop, Template
-from app.services.wa.errors import WaError
+from app.services import wa
+from app.services.wa.errors import WaBlocked, WaError
 from app.settings import settings
 
 router = APIRouter(tags=["whatsapp"])
@@ -32,6 +33,64 @@ def wa_config(shop: Shop = Depends(current_shop)):
         "mm_terms_status": shop.wa_mm_terms_status,
         "mm_terms_signed_at": shop.wa_mm_terms_signed_at.isoformat() if shop.wa_mm_terms_signed_at else None,
     }
+
+
+@router.get("/wa/onboarding-status")
+def onboarding_status(shop: Shop = Depends(current_shop)):
+    """The real state of this seller's Meta setup, as a step list.
+
+    The connect screen renders straight from this — no hardcoded numbers. Each
+    step is independently retryable, which is why they're reported separately
+    rather than as a single percentage."""
+    token_expired = bool(shop.wa_token_expiry and shop.wa_token_expiry < datetime.now())
+    coexisting = bool(shop.wa_is_on_biz_app)
+    steps = [
+        {"key": "signup", "done": bool(shop.waba_id and shop.phone_number_id)},
+        {"key": "token", "done": bool(shop.wa_access_token) and not token_expired},
+        {"key": "webhooks", "done": bool(shop.waba_id)},
+        # Coexistence numbers are already registered by the Business app, so the
+        # register call is skipped by design — report it as satisfied, not missing.
+        {"key": "registered", "done": bool(shop.wa_verified) or coexisting},
+        {"key": "test_message", "done": bool(shop.wa_test_message_sent_at)},
+    ]
+    return {
+        "connected": shop.wa_connected,
+        "number": shop.wa_number,
+        "waba_id": shop.waba_id,
+        "phone_number_id": shop.phone_number_id,
+        "verified": shop.wa_verified,
+        "token_expired": token_expired,
+        "path": shop.wa_onboarding_path,
+        "coexisting": coexisting,
+        "history_sync_status": shop.wa_history_sync_status,
+        "contacts_synced": shop.wa_contacts_synced,
+        "messages_synced": shop.wa_messages_synced,
+        "history_synced_at": shop.wa_history_synced_at.isoformat() if shop.wa_history_synced_at else None,
+        "test_message_sent_at": shop.wa_test_message_sent_at.isoformat() if shop.wa_test_message_sent_at else None,
+        "mm_terms_status": shop.wa_mm_terms_status,
+        "steps": steps,
+        "ready_to_send": all(s["done"] for s in steps if s["key"] != "test_message"),
+    }
+
+
+@router.post("/wa/test-message")
+def test_message(payload: dict = Body(default={}),
+                 db: Session = Depends(get_db), shop: Shop = Depends(current_shop)):
+    """Send one real message to a phone the seller is holding.
+
+    Works in both modes on purpose: this is the final step of onboarding, and a
+    demo has to be able to finish it too. Defaults to the shop's contact phone,
+    which for a fresh (non-coexistence) signup differs from the WhatsApp number."""
+    phone = (payload.get("phone") or shop.phone or "").strip()
+    try:
+        result = wa.send_test_message(db, shop, phone)
+    except WaBlocked as e:
+        raise HTTPException(400, str(e))
+    except WaError as e:
+        raise HTTPException(502, str(e))
+    shop.wa_test_message_sent_at = datetime.now()
+    db.commit()
+    return result
 
 
 @router.get("/wa/mm-status")

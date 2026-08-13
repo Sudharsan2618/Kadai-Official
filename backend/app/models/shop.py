@@ -31,6 +31,9 @@ class Shop(Base):
     wa_verified: Mapped[bool] = mapped_column(Boolean, default=False)  # number registered + 2FA PIN set
     wa_mm_terms_status: Mapped[str] = mapped_column(String(30), default="NOT_STARTED")
     wa_mm_terms_signed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Set once the seller sends the onboarding proof-of-life message. This is
+    # what makes "you're live" a fact rather than a claim.
+    wa_test_message_sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     # ── Coexistence (Embedded Signup "keep the WhatsApp Business app", K-02) ─
     wa_onboarding_path: Mapped[str] = mapped_column(String(20), default="fresh")  # fresh | coexist

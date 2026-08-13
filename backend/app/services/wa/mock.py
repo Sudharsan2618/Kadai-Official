@@ -17,6 +17,7 @@ from app.core import runtime
 from app.core.events import publish
 from app.db.session import SessionLocal
 from app.models import Broadcast, BroadcastRecipient, Customer, Message, Shop
+from app.services.wa.errors import WaBlocked
 from app.settings import settings
 
 AUTO_REPLIES = [
@@ -168,3 +169,18 @@ async def _run_broadcast(broadcast_id: int):
 
 def start_broadcast(broadcast_id: int) -> None:
     runtime.schedule(_run_broadcast(broadcast_id))
+
+
+def send_test_message(db, shop: Shop, phone: str) -> dict:
+    """Mock twin of the cloud onboarding test send. Validates the same way the
+    real one does — so a seller hitting 'send it to my own shop number' gets the
+    identical error in demo mode — then pretends it went out."""
+    digits = "".join(c for c in (phone or "") if c.isdigit())
+    if len(digits) < 10:
+        raise WaBlocked("Enter the WhatsApp number you want the test sent to")
+    if digits[-10:] == "".join(c for c in (shop.wa_number or "") if c.isdigit())[-10:]:
+        raise WaBlocked(
+            "That's the shop's own WhatsApp number — send the test to a different "
+            "phone, like your personal number")
+    return {"sent": True, "wamid": f"wamid.mock.{random.randint(10**6, 10**7)}",
+            "to": digits[-10:], "template": "hello_world", "mock": True}

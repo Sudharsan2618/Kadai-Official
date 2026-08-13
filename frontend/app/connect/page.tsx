@@ -9,7 +9,7 @@
 import { useState, useEffect, useRef } from "react"
 import {
   Smartphone, Sparkles, Link2, FlaskConical, CreditCard, ShieldCheck,
-  ArrowRight, Copy, Check, AlertTriangle, History, Users,
+  ArrowRight, Copy, Check, AlertTriangle, History, Users, Send,
 } from "lucide-react"
 import { Shell } from "@/components/shell"
 import { cn, Card, Chip, Button, Input, Field } from "@/components/ui"
@@ -57,6 +57,21 @@ const PATHS: { id: Path; icon: any; title: string; blurb: string; badge?: string
   },
 ]
 
+/* Mirrors the `steps` array from GET /wa/onboarding-status. The backend owns
+   whether a step is done; this owns how we explain it. */
+const STEP_COPY = [
+  { key: "signup", title: "Signup completed",
+    description: "Seller approved Kadai and returned a WABA ID, a phone number ID and an exchangeable code." },
+  { key: "token", title: "Access token exchanged",
+    description: "Traded the code for a seller-scoped business token. Stored encrypted." },
+  { key: "webhooks", title: "Webhooks subscribed",
+    description: "Messages, statuses, template updates and account alerts — plus history, contact sync and message echoes for coexistence." },
+  { key: "registered", title: "Number registered",
+    description: "Registered on Cloud API with a two-step verification PIN." },
+  { key: "test_message", title: "First test message",
+    description: "Confirms the whole pipe works before the seller trusts it with real customers." },
+]
+
 const COEXIST_KEEPS = [
   { label: "Their existing number", ok: true },
   { label: "6 months of chat history", ok: true },
@@ -73,10 +88,31 @@ export default function ConnectPage() {
   const [copied, setCopied] = useState(false)
   const [launching, setLaunching] = useState(false)
   const [waCfg, setWaCfg] = useState<any | null>(null)
+  const [status, setStatus] = useState<any | null>(null)
   const codeRef = useRef("")
   const assetsRef = useRef<{ waba_id?: string; phone_number_id?: string }>({})
+  // The message listener registers once, so anything it reads must come from a
+  // ref rather than a closed-over render value.
+  const pathRef = useRef<Path>("coexist")
+  pathRef.current = path
 
-  useEffect(() => { get("/wa/config").then(setWaCfg).catch(() => {}) }, [])
+  const [testing, setTesting] = useState(false)
+
+  const loadStatus = () =>
+    get("/wa/onboarding-status").then(setStatus).catch(() => setStatus(null))
+
+  const sendTest = () => {
+    setTesting(true)
+    post("/wa/test-message", {})
+      .then(() => { toast("Test message sent"); loadStatus() })
+      .catch((e) => toast(typeof e?.message === "string" ? e.message : "Couldn't send the test"))
+      .finally(() => setTesting(false))
+  }
+
+  useEffect(() => {
+    get("/wa/config").then(setWaCfg).catch(() => {})
+    loadStatus()
+  }, [])
 
   const hostedUrl = "https://business.facebook.com/messaging/whatsapp/onboard/?app_id=2854903808192123"
 
@@ -114,12 +150,17 @@ export default function ConnectPage() {
     }
     window.addEventListener("message", onMessage)
     return () => window.removeEventListener("message", onMessage)
-  })
+  }, [])
 
   const completeConnect = () => {
     if (!codeRef.current || !assetsRef.current.waba_id || !assetsRef.current.phone_number_id) return
-    post("/onboarding/connect", { code: codeRef.current, ...assetsRef.current, path })
-      .then(() => toast("Seller connected — pulling chats and contacts"))
+    post("/onboarding/connect", { code: codeRef.current, ...assetsRef.current, path: pathRef.current })
+      .then(() => {
+        toast(pathRef.current === "coexist"
+          ? "Connected — pulling chats and contacts"
+          : "Connected")
+        loadStatus()
+      })
       .catch((e) => toast(typeof e?.message === "string" ? e.message : "Couldn't connect — try again"))
       .finally(() => setLaunching(false))
   }
@@ -167,7 +208,7 @@ export default function ConnectPage() {
         title="Connect a seller's WhatsApp"
         description="Choose the safest setup path, finish the Meta handshake, and verify the first message before handing the number back to the seller."
       >
-        {/* ── Live status hero ─────────────────────────────────────────── */}
+        {/* ── Live status hero — real data from /wa/onboarding-status ───── */}
         <Card className="mt-4 overflow-hidden">
           <div className="px-5 py-4 flex items-start gap-4 flex-wrap">
             <div
@@ -177,35 +218,67 @@ export default function ConnectPage() {
               <Smartphone size={20} style={{ color: WA_GREEN }} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm font-semibold">+91 98430 21188</p>
-                <Chip tone="green">Live</Chip>
-                <Chip tone="blue">Coexisting with the Business app</Chip>
+              {status?.connected ? (
+                <>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold">
+                      {status.number ? `+91 ${status.number}` : "Number pending"}
+                    </p>
+                    {status.token_expired
+                      ? <Chip tone="red">Reconnect needed</Chip>
+                      : status.ready_to_send
+                        ? <Chip tone="green">Live</Chip>
+                        : <Chip tone="amber">Finishing setup</Chip>}
+                    {status.coexisting && <Chip tone="blue">Business app kept</Chip>}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    WABA {status.waba_id || "—"}
+                    {status.test_message_sent_at ? " · test message delivered" : " · no test message yet"}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold">No number connected</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Pick a path below and run the Meta signup to get this seller live.
+                  </p>
+                </>
+              )}
+            </div>
+            {status?.connected && (
+              <Button variant="secondary" onClick={loadStatus}>Refresh</Button>
+            )}
+          </div>
+
+          {status?.coexisting && (
+            <div className="px-5 pb-4 grid sm:grid-cols-3 gap-4 border-t border-border pt-3">
+              <div>
+                <p className="text-[11px] text-muted-foreground">Sending speed</p>
+                <p className="text-sm font-medium mt-0.5">20 messages / second</p>
+                <p className="text-[11px] text-faint mt-0.5">Capped while coexisting</p>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Murugan Fruits &amp; Vegetables · connected 3 days ago · quality rating{" "}
-                <span className="text-success-text font-medium">Green</span>
-              </p>
+              <div>
+                <p className="text-[11px] text-muted-foreground">Contacts brought across</p>
+                <p className="text-sm font-medium mt-0.5 tabular-nums">
+                  {(status.contacts_synced ?? 0).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground">Chats brought across</p>
+                <p className="text-sm font-medium mt-0.5 tabular-nums">
+                  {(status.messages_synced ?? 0).toLocaleString("en-IN")}
+                </p>
+                <p className="text-[11px] text-faint mt-0.5">
+                  {{
+                    pending: "Syncing…",
+                    done: "Last 6 months",
+                    failed: "Sync failed",
+                    skipped: "Seller declined history",
+                  }[status.history_sync_status as string] || "Not started"}
+                </p>
+              </div>
             </div>
-            <Button variant="secondary">Manage number</Button>
-          </div>
-          <div className="px-5 pb-4 grid sm:grid-cols-3 gap-4 border-t border-border pt-3">
-            <div>
-              <p className="text-[11px] text-muted-foreground">Daily send limit</p>
-              <p className="text-sm font-medium mt-0.5 tabular-nums">182 / 250 people</p>
-              <div className="mt-1.5"><Meter value={182} max={250} tone="amber" /></div>
-            </div>
-            <div>
-              <p className="text-[11px] text-muted-foreground">Sending speed</p>
-              <p className="text-sm font-medium mt-0.5">20 messages / second</p>
-              <p className="text-[11px] text-faint mt-0.5">Capped while coexisting</p>
-            </div>
-            <div>
-              <p className="text-[11px] text-muted-foreground">Chats synced</p>
-              <p className="text-sm font-medium mt-0.5 tabular-nums">1,204 messages · 318 contacts</p>
-              <p className="text-[11px] text-faint mt-0.5">Last 6 months</p>
-            </div>
-          </div>
+          )}
         </Card>
 
         {/* ── Onboarding path chooser ──────────────────────────────────── */}
@@ -321,49 +394,40 @@ export default function ConnectPage() {
           description="Every step is retryable on its own. If one fails we resume from there rather than making the seller start again."
         >
           <Card className="px-4 py-1">
+            {STEP_COPY.map(({ key, title, description }, i) => {
+              const done = status?.steps?.find((s: any) => s.key === key)?.done
+              // Registration is skipped by design on coexistence numbers — say so
+              // rather than showing a step that will never tick.
+              const desc = key === "registered" && status?.coexisting
+                ? "Already registered through the WhatsApp Business app, so Kadai skips this."
+                : description
+              return (
+                <Step
+                  key={key}
+                  n={i + 1}
+                  state={done ? "done" : status?.connected ? "active" : "todo"}
+                  title={title}
+                  description={desc}
+                  action={key === "test_message" && status?.connected && !done ? (
+                    <Button variant="secondary" className="gap-1.5" disabled={testing}
+                            onClick={sendTest}>
+                      <Send size={14} /> {testing ? "Sending…" : "Send a test message"}
+                    </Button>
+                  ) : undefined}
+                />
+              )
+            })}
             <Step
-              n={1}
-              state="done"
-              title="Signup completed"
-              description="Seller approved Kadai and returned a WABA ID, a phone number ID and an exchangeable code."
-            />
-            <Step
-              n={2}
-              state="done"
-              title="Access token exchanged"
-              description="Traded the code for a seller-scoped business token. Stored encrypted."
-            />
-            <Step
-              n={3}
-              state="done"
-              title="Webhooks subscribed"
-              description="Subscribed to messages, statuses, template updates, account alerts — plus history, contact sync and message echoes for coexistence."
-            />
-            <Step
-              n={4}
-              state="done"
-              title="Number registered"
-              description="Registered on Cloud API with a two-step verification PIN."
-            />
-            <Step
-              n={5}
+              n={STEP_COPY.length + 1}
               state="blocked"
               title="Payment method on the seller's WhatsApp account"
-              description="Meta bills the seller directly because we are a Tech Provider, not a Solution Partner. Until a card is attached, no charged template will send."
+              description="Meta bills the seller directly because we are a Tech Provider, not a Solution Partner. Until a card is attached, no charged template will send. We can't check this from the API yet — confirm it with the seller."
               action={
-                <div className="flex gap-2 flex-wrap">
-                  <Button variant="secondary" className="gap-1.5">
-                    <CreditCard size={14} /> Send the seller a walkthrough
-                  </Button>
-                  <Button variant="ghost">Check again</Button>
-                </div>
+                <Button variant="secondary" className="gap-1.5"
+                        onClick={() => window.open("https://www.facebook.com/business/help/488291839463771", "_blank")}>
+                  <CreditCard size={14} /> Open Meta&apos;s walkthrough
+                </Button>
               }
-            />
-            <Step
-              n={6}
-              state="todo"
-              title="First test message"
-              description="Confirms the whole pipe works before the seller trusts it with real customers."
             />
           </Card>
 

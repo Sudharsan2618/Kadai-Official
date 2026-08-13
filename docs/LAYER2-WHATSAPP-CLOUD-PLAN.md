@@ -1,5 +1,24 @@
 # Layer 2 — Real WhatsApp (Meta Cloud API) Implementation Plan
 
+> # ⚠️ HISTORICAL — DO NOT FOLLOW THE FILE PATHS
+>
+> **Superseded 8 Aug 2026.** This document planned Layer 2 against the old flat
+> `backend/*.py` layout. The backend has since been restructured into the layered
+> `backend/app/` package, so **every file path below is wrong** — `wa.py`,
+> `wa_cloud.py`, `routes_webhook.py`, `models.py`, `config.py` and `migrate.py`
+> no longer exist at those locations.
+>
+> It is kept because the *reasoning* — the seams, the 24-hour window, the
+> template gate, the tenant-resolution-by-`phone_number_id` decision — is still
+> exactly how the system works, and that rationale is not written down anywhere
+> else.
+>
+> **For current paths and current status, read `STATE-OF-THE-CODEBASE.md`.**
+> **For layout and how to run it, read `backend/README.md`.**
+>
+> Mapping of the names below to where they live now is in
+> `STATE-OF-THE-CODEBASE.md` §1.
+
 > **STATUS (7 Jul 2026): CODE COMPLETE.** All sections below are implemented:
 > `wa.py` (dispatcher), `wa_cloud.py` (Graph client: send/templates/register/
 > Embedded Signup), `routes_webhook.py` (verify + inbound + statuses + template

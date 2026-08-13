@@ -34,6 +34,7 @@ _COLUMNS: list[tuple[str, str, str]] = [
     ("shops", "wa_verified", "BOOLEAN DEFAULT FALSE"),
     ("shops", "wa_mm_terms_status", "VARCHAR(30) DEFAULT 'NOT_STARTED'"),
     ("shops", "wa_mm_terms_signed_at", "TIMESTAMP NULL"),
+    ("shops", "wa_test_message_sent_at", "TIMESTAMP NULL"),
     # Coexistence (K-02)
     ("shops", "wa_onboarding_path", "VARCHAR(20) DEFAULT 'fresh'"),
     ("shops", "wa_is_on_biz_app", "BOOLEAN DEFAULT FALSE"),

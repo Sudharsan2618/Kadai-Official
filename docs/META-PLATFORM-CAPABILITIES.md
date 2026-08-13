@@ -99,8 +99,9 @@ not an engineering one.
 
 ### Version debt we already carry
 
-- `backend/config.py` pins `WA_API_VERSION = v21.0`. Meta's current docs are on
-  **v25.0**. Not urgent, but stale.
+- ~~`backend/config.py` pins `WA_API_VERSION = v21.0`~~ — **resolved.**
+  `backend/app/settings/whatsapp.py` now defaults to **`v25.0`**, matching
+  Meta's current docs. (The file moved too; see `STATE-OF-THE-CODEBASE.md` §1.)
 - **Embedded Signup v2 is deprecated on 15 October 2026.** We must be on **v4**
   before then. v4 is not a code change so much as a *configuration* change:
   you create a new Facebook Login for Business configuration, select your

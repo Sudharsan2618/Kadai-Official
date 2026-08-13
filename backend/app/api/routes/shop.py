@@ -1,4 +1,6 @@
 """The shop profile and WhatsApp onboarding."""
+from datetime import datetime
+
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -53,7 +55,23 @@ def onboarding_connect(payload: dict = Body(default={}), shop: Shop = Depends(cu
         except WaError as e:
             raise HTTPException(502, str(e))
 
+    # Mock mode: stand in for everything Embedded Signup would have produced.
+    # The mock has to leave the shop row in the SAME shape the cloud path does,
+    # or anything that reads those fields (onboarding status, the connect
+    # screen's step list) reports a permanently unfinished setup in the demo.
+    path = payload.get("path") or "fresh"
+    coexist = path == "coexist"
     shop.wa_connected = True
     shop.wa_number = payload.get("phone", shop.phone or "9843000001")
+    shop.waba_id = shop.waba_id or f"mock-waba-{shop.id}"
+    shop.phone_number_id = shop.phone_number_id or f"mock-phone-{shop.id}"
+    shop.wa_access_token = shop.wa_access_token or "mock-token"
+    shop.wa_verified = True
+    shop.wa_onboarding_path = path
+    shop.wa_is_on_biz_app = coexist
+    if coexist:
+        # Mirrors what the coexistence sync would report once it finished.
+        shop.wa_history_sync_status = "done"
+        shop.wa_history_synced_at = datetime.now()
     db.commit()
-    return {"connected": True, "wa_number": shop.wa_number}
+    return {"connected": True, "wa_number": shop.wa_number, "coexist": coexist}
