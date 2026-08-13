@@ -182,5 +182,12 @@ def send_test_message(db, shop: Shop, phone: str) -> dict:
         raise WaBlocked(
             "That's the shop's own WhatsApp number — send the test to a different "
             "phone, like your personal number")
+    # A successful send is what proves billing works in cloud mode, so the mock
+    # has to record it too — otherwise the demo shows a "payment method not
+    # confirmed" blocker that can never clear.
+    if db is not None and not shop.wa_payment_ready:
+        shop.wa_payment_ready = True
+        shop.wa_last_error_code = 0
+        db.commit()
     return {"sent": True, "wamid": f"wamid.mock.{random.randint(10**6, 10**7)}",
             "to": digits[-10:], "template": "hello_world", "mock": True}

@@ -35,6 +35,13 @@ _COLUMNS: list[tuple[str, str, str]] = [
     ("shops", "wa_mm_terms_status", "VARCHAR(30) DEFAULT 'NOT_STARTED'"),
     ("shops", "wa_mm_terms_signed_at", "TIMESTAMP NULL"),
     ("shops", "wa_test_message_sent_at", "TIMESTAMP NULL"),
+    # Send readiness + the number's own identity as Meta reports it
+    ("shops", "wa_display_number", "VARCHAR(32) DEFAULT ''"),
+    ("shops", "wa_payment_ready", "BOOLEAN DEFAULT FALSE"),
+    ("shops", "wa_last_error_code", "INTEGER DEFAULT 0"),
+    ("shops", "wa_name_status", "VARCHAR(30) DEFAULT ''"),
+    ("shops", "wa_quality_rating", "VARCHAR(20) DEFAULT ''"),
+    ("shops", "wa_verified_name", "VARCHAR(120) DEFAULT ''"),
     # Coexistence (K-02)
     ("shops", "wa_onboarding_path", "VARCHAR(20) DEFAULT 'fresh'"),
     ("shops", "wa_is_on_biz_app", "BOOLEAN DEFAULT FALSE"),

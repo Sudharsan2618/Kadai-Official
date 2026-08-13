@@ -11,7 +11,7 @@ from app.api.deps import cloud_mode_only, current_shop
 from app.db.session import get_db
 from app.models import ReadyMessage, Shop, Template
 from app.services import wa
-from app.services.wa.errors import WaBlocked, WaError
+from app.services.wa.errors import PAYMENT_ISSUE_CODE, WaBlocked, WaError
 from app.settings import settings
 
 router = APIRouter(tags=["whatsapp"])
@@ -35,9 +35,65 @@ def wa_config(shop: Shop = Depends(current_shop)):
     }
 
 
+def _blockers(shop: Shop, token_expired: bool) -> list[dict]:
+    """Everything standing between this seller and a delivered message.
+
+    Only genuinely-blocking, genuinely-known problems belong here. The screen
+    renders this list verbatim, so a false entry becomes a false instruction —
+    when we don't know, we say nothing."""
+    out: list[dict] = []
+    if token_expired:
+        out.append({
+            "key": "token_expired", "severity": "blocking",
+            "title": "Reconnect your WhatsApp",
+            "detail": "Meta's permission for Kadai expired. Reconnecting takes a minute "
+                      "and keeps your number, chats and contacts.",
+            "action": "reconnect",
+        })
+    if not shop.wa_verified and not shop.wa_is_on_biz_app:
+        out.append({
+            "key": "not_registered", "severity": "blocking",
+            "title": "Finish registering your number",
+            "detail": "Your number reached Kadai but Meta hasn't finished registering it "
+                      "for sending.",
+            "action": "register",
+        })
+    # A 555 test number cannot send until its display name clears review (131037).
+    if shop.wa_name_status and shop.wa_name_status.upper() not in (
+            "APPROVED", "AVAILABLE_WITHOUT_REVIEW"):
+        out.append({
+            "key": "display_name", "severity": "blocking",
+            "title": "Get your display name approved",
+            "detail": "Meta hasn't approved the name customers will see, so messages "
+                      "won't send. Test numbers starting 555 always need this.",
+            "action": "display_name",
+            "meta": {"name_status": shop.wa_name_status},
+        })
+    # Meta has no endpoint for billing state, so this is inferred from sends:
+    # 131042 proves it's missing, a success proves it's there. Before either
+    # happens we say "unknown" rather than accusing the seller of a missing card.
+    if shop.wa_last_error_code == PAYMENT_ISSUE_CODE:
+        out.append({
+            "key": "payment_method", "severity": "blocking",
+            "title": "Add a payment method",
+            "detail": "Meta bills you directly for messages, and a send just failed "
+                      "because no working payment method is attached.",
+            "action": "billing",
+        })
+    elif not shop.wa_payment_ready:
+        out.append({
+            "key": "payment_method", "severity": "unknown",
+            "title": "Payment method not confirmed yet",
+            "detail": "Meta bills you directly for messages. We can only confirm it's "
+                      "set up by sending — the test message below will tell us.",
+            "action": "billing",
+        })
+    return out
+
+
 @router.get("/wa/onboarding-status")
 def onboarding_status(shop: Shop = Depends(current_shop)):
-    """The real state of this seller's Meta setup, as a step list.
+    """The real state of this seller's Meta setup.
 
     The connect screen renders straight from this — no hardcoded numbers. Each
     step is independently retryable, which is why they're reported separately
@@ -53,15 +109,24 @@ def onboarding_status(shop: Shop = Depends(current_shop)):
         {"key": "registered", "done": bool(shop.wa_verified) or coexisting},
         {"key": "test_message", "done": bool(shop.wa_test_message_sent_at)},
     ]
+    blockers = _blockers(shop, token_expired) if shop.wa_connected else []
     return {
         "connected": shop.wa_connected,
         "number": shop.wa_number,
+        # Full number as Meta reports it, country code included. Older rows have
+        # no value here, so fall back rather than render an empty header.
+        "display_number": shop.wa_display_number or shop.wa_number,
+        "verified_name": shop.wa_verified_name,
         "waba_id": shop.waba_id,
         "phone_number_id": shop.phone_number_id,
         "verified": shop.wa_verified,
         "token_expired": token_expired,
         "path": shop.wa_onboarding_path,
         "coexisting": coexisting,
+        "name_status": shop.wa_name_status,
+        "quality_rating": shop.wa_quality_rating,
+        "payment_ready": shop.wa_payment_ready,
+        "last_error_code": shop.wa_last_error_code,
         "history_sync_status": shop.wa_history_sync_status,
         "contacts_synced": shop.wa_contacts_synced,
         "messages_synced": shop.wa_messages_synced,
@@ -69,8 +134,55 @@ def onboarding_status(shop: Shop = Depends(current_shop)):
         "test_message_sent_at": shop.wa_test_message_sent_at.isoformat() if shop.wa_test_message_sent_at else None,
         "mm_terms_status": shop.wa_mm_terms_status,
         "steps": steps,
-        "ready_to_send": all(s["done"] for s in steps if s["key"] != "test_message"),
+        "blockers": blockers,
+        "can_send": shop.wa_connected and not any(
+            b["severity"] == "blocking" for b in blockers),
     }
+
+
+@router.post("/wa/refresh-health")
+def refresh_health(db: Session = Depends(get_db), shop: Shop = Depends(current_shop),
+                   cloud=Depends(cloud_mode_only)):
+    """Re-read the number's display-name approval and quality from Meta."""
+    try:
+        return cloud.refresh_number_health(db, shop)
+    except WaError as e:
+        raise HTTPException(502, str(e))
+
+
+@router.post("/wa/disconnect")
+def wa_disconnect(db: Session = Depends(get_db), shop: Shop = Depends(current_shop)):
+    """Detach the WhatsApp number. Keeps customers, chats and orders."""
+    if not shop.wa_connected:
+        raise HTTPException(409, "No WhatsApp number is connected")
+    if settings.wa.is_cloud:
+        from app.services.wa import cloud
+        try:
+            return cloud.disconnect(db, shop)
+        except WaError as e:
+            raise HTTPException(502, str(e))
+    shop.wa_connected = False
+    shop.wa_number = shop.wa_display_number = shop.waba_id = shop.phone_number_id = ""
+    shop.wa_access_token = ""
+    shop.wa_verified = shop.wa_is_on_biz_app = shop.wa_payment_ready = False
+    shop.wa_test_message_sent_at = None
+    shop.wa_history_sync_status = "none"
+    db.commit()
+    return {"disconnected": True, "unsubscribed_from_meta": False}
+
+
+@router.post("/wa/sync-history")
+def sync_history(db: Session = Depends(get_db), shop: Shop = Depends(current_shop),
+                 cloud=Depends(cloud_mode_only)):
+    """Retry the coexistence contacts + history pull.
+
+    Meta only honours this within 24 hours of onboarding; after that the seller
+    has to reconnect, which is why the screen shows the deadline."""
+    if not shop.wa_is_on_biz_app:
+        raise HTTPException(409, "This number didn't come from the WhatsApp Business app")
+    cloud.start_coexistence_sync(shop.id)
+    db.refresh(shop)
+    return {"status": shop.wa_history_sync_status}
 
 
 @router.post("/wa/test-message")

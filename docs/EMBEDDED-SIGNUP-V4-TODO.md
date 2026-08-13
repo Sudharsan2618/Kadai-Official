@@ -33,7 +33,7 @@
 1. Meta App Dashboard → **Facebook Login for Business** → **Configurations**.
 2. Click **Create from template** → choose **"WhatsApp Embedded Signup Configuration With 60 Expiration Token"** (or create custom and pick the *WhatsApp Embedded Signup* login variation, then select the products: Cloud API + Marketing Messages API; add *WhatsApp Business app user onboarding* to enable the coexistence path).
 3. After saving, the config shows a **Configuration ID** — a long numeric string. Copy it.
-4. Put it in `backend/.env` as `META_ES_CONFIG_ID=...` (currently **empty** — that is why `/connect` and `/settings` throw "Meta Embedded Signup is not configured").
+4. Put it in `backend/.env` as `META_ES_CONFIG_ID=...`. **Done — verified 2026-08-08:** `META_ES_CONFIG_ID=2101636474114169`, `META_APP_ID=2854903808192123`, `WA_MODE=cloud`, and the app secret / verify token / Fernet key are all set. If `/connect` still reports "Meta Embedded Signup isn't configured", the cause is the frontend reading a stale `/wa/config` or the API not running — not a missing value.
 5. Also confirm **Facebook Login for Business** → **Client OAuth settings** has: Client OAuth login, Web OAuth login, Enforce HTTPS, Embedded Browser OAuth Login, Strict Mode, Login with the JS SDK — all **Yes**, and your dev/prod HTTPS domains are in *Valid OAuth redirect URIs* + *Allowed domains*.
 6. The existing app id `2854903808192123` and secret are already in `.env`.
 

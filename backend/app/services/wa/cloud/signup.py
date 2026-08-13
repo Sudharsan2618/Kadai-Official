@@ -21,8 +21,10 @@ log = logging.getLogger(__name__)
 
 MM_SIGNED_STATUSES = {"ONBOARDED", "TERM_OF_SERVICE_SIGNED"}
 
-# Meta seeds every new WABA with this template, so it is the one thing we can
-# always send before the seller has approved anything of their own.
+# Meta's sample template. It reliably exists on Meta-provided TEST numbers, but
+# is NOT guaranteed on a WABA a seller created through Embedded Signup — their
+# docs only ever show it in the get-started flow. So we prefer it and fall back
+# to whatever the WABA actually has approved.
 DEFAULT_TEST_TEMPLATE = "hello_world"
 DEFAULT_TEST_LANGUAGE = "en_US"
 
@@ -85,7 +87,9 @@ def connect_embedded_signup(db, shop: Shop, code: str,
         raise WaError("No WhatsApp Business Account was shared — redo the signup and select one")
 
     # 3) the phone number under that WABA
-    nums = graph("GET", f"/{waba_id}/phone_numbers", token).get("data", [])
+    nums = graph("GET", f"/{waba_id}/phone_numbers", token, query={
+        "fields": "id,display_phone_number,verified_name,name_status,quality_rating,platform_type",
+    }).get("data", [])
     if not nums:
         raise WaError("The WhatsApp Business Account has no phone number yet")
     selected = next((n for n in nums if str(n.get("id")) == phone_number_id_hint), None) if phone_number_id_hint else None
@@ -93,7 +97,10 @@ def connect_embedded_signup(db, shop: Shop, code: str,
         raise WaError("Embedded Signup returned a phone number that is not under the granted WABA")
     selected = selected or nums[0]
     phone_number_id = str(selected["id"])
-    display_number = re.sub(r"\D", "", selected.get("display_phone_number", ""))[-10:]
+    # Keep both forms: the full one Meta gave us (country code included — a 555
+    # test number is +1, not +91) and the bare local one used for matching.
+    display_full = str(selected.get("display_phone_number") or "").strip()
+    display_number = re.sub(r"\D", "", display_full)[-10:]
 
     # 3b) Coexistence: confirm the number is actually registered for the
     # Business app. If not, fall back to the normal fresh flow (register it).
@@ -115,6 +122,10 @@ def connect_embedded_signup(db, shop: Shop, code: str,
     shop.wa_access_token = encrypt_token(token)
     shop.wa_token_expiry = (datetime.now() + timedelta(seconds=expires_in)) if expires_in else None
     shop.wa_number = display_number or shop.phone
+    shop.wa_display_number = display_full
+    shop.wa_verified_name = str(selected.get("verified_name") or "")
+    shop.wa_name_status = str(selected.get("name_status") or "")
+    shop.wa_quality_rating = str(selected.get("quality_rating") or "")
     shop.wa_connected = True
     shop.wa_onboarding_path = "coexist" if shop.wa_is_on_biz_app else "fresh"
     db.commit()
@@ -141,6 +152,65 @@ def connect_embedded_signup(db, shop: Shop, code: str,
             "coexist": shop.wa_is_on_biz_app, "pin": pin}
 
 
+# ── Number health: what Meta says about this number right now ───────────────
+def refresh_number_health(db, shop: Shop) -> dict:
+    """Pull the phone number's own state — display name approval and quality.
+
+    `name_status` matters more than it looks: a 555 test number cannot send at
+    all until it is APPROVED (error 131037), and that is invisible everywhere
+    else in the product."""
+    require_connected(shop)
+    data = graph("GET", f"/{shop.phone_number_id}", shop_token(shop), query={
+        "fields": "display_phone_number,verified_name,name_status,quality_rating,platform_type",
+    })
+    shop.wa_display_number = str(data.get("display_phone_number") or shop.wa_display_number)
+    shop.wa_verified_name = str(data.get("verified_name") or "")
+    shop.wa_name_status = str(data.get("name_status") or "")
+    shop.wa_quality_rating = str(data.get("quality_rating") or "")
+    db.commit()
+    return {"display_number": shop.wa_display_number, "verified_name": shop.wa_verified_name,
+            "name_status": shop.wa_name_status, "quality_rating": shop.wa_quality_rating}
+
+
+# ── Disconnect: hand the number back ────────────────────────────────────────
+def disconnect(db, shop: Shop) -> dict:
+    """Unsubscribe our app from the seller's WABA and drop the stored token.
+
+    Deliberately keeps customers, chats and orders — the seller is detaching a
+    channel, not deleting their shop. Meta-side unsubscribe is best-effort: if
+    it fails we still clear our credentials, because leaving a token we can no
+    longer explain is worse than an orphaned subscription."""
+    unsubscribed = False
+    if shop.waba_id and shop.wa_access_token:
+        try:
+            graph("DELETE", f"/{shop.waba_id}/subscribed_apps", shop_token(shop))
+            unsubscribed = True
+        except WaError as e:
+            log.warning("shop %s: WABA unsubscribe failed on disconnect — %s", shop.id, e)
+
+    shop.wa_connected = False
+    shop.wa_access_token = ""
+    shop.wa_token_expiry = None
+    shop.wa_verified = False
+    shop.waba_id = ""
+    shop.phone_number_id = ""
+    shop.wa_number = ""
+    shop.wa_display_number = ""
+    shop.wa_verified_name = ""
+    shop.wa_name_status = ""
+    shop.wa_quality_rating = ""
+    shop.wa_payment_ready = False
+    shop.wa_last_error_code = 0
+    shop.wa_test_message_sent_at = None
+    shop.wa_is_on_biz_app = False
+    shop.wa_onboarding_path = "fresh"
+    shop.wa_history_sync_status = "none"
+    db.commit()
+    log.info("shop %s disconnected (meta unsubscribe: %s)", shop.id, unsubscribed)
+    publish("wa_disconnected", {"shop_id": shop.id})
+    return {"disconnected": True, "unsubscribed_from_meta": unsubscribed}
+
+
 # ── Onboarding proof: send one real message to the seller's own phone ───────
 def send_test_message(db, shop: Shop, phone: str) -> dict:
     """The last step of onboarding: prove the pipe works, end to end.
@@ -164,17 +234,50 @@ def send_test_message(db, shop: Shop, phone: str) -> dict:
             "That's the shop's own WhatsApp number — send the test to a different "
             "phone, like your personal number")
 
+    token = shop_token(shop)
+    name, language = _pick_test_template(shop, token)
     payload = {
         "messaging_product": "whatsapp", "recipient_type": "individual", "to": to,
         "type": "template",
-        "template": {"name": DEFAULT_TEST_TEMPLATE,
-                     "language": {"code": DEFAULT_TEST_LANGUAGE}},
+        "template": {"name": name, "language": {"code": language}},
     }
-    resp = graph("POST", f"/{shop.phone_number_id}/messages", shop_token(shop), payload)
+    from app.services.wa.cloud.messaging import record_send_outcome
+    try:
+        resp = graph("POST", f"/{shop.phone_number_id}/messages", token, payload)
+    except WaError as e:
+        # The test send is usually the first real send an account makes, so it
+        # is also where billing and display-name problems surface first.
+        record_send_outcome(db, shop, False, e)
+        raise
+    record_send_outcome(db, shop, True, None)
     wamid = (resp.get("messages") or [{}])[0].get("id", "")
-    log.info("shop %s: onboarding test message sent (%s)", shop.id, wamid or "no wamid")
-    return {"sent": True, "wamid": wamid, "to": to,
-            "template": DEFAULT_TEST_TEMPLATE}
+    log.info("shop %s: onboarding test message sent via %s (%s)",
+             shop.id, name, wamid or "no wamid")
+    return {"sent": True, "wamid": wamid, "to": to, "template": name}
+
+
+def _pick_test_template(shop: Shop, token: str) -> tuple[str, str]:
+    """Choose a template the seller's WABA can actually send.
+
+    Prefers Meta's `hello_world` sample, but a WABA created through Embedded
+    Signup does not necessarily have it — so fall back to any APPROVED template
+    on the account rather than sending something Meta will reject with an
+    error the seller cannot act on."""
+    try:
+        rows = graph("GET", f"/{shop.waba_id}/message_templates", token,
+                     query={"fields": "name,language,status", "limit": "100"}).get("data", [])
+    except WaError:
+        return DEFAULT_TEST_TEMPLATE, DEFAULT_TEST_LANGUAGE  # let the send surface the real error
+
+    approved = [t for t in rows if str(t.get("status", "")).upper() == "APPROVED"]
+    for t in approved:
+        if t.get("name") == DEFAULT_TEST_TEMPLATE:
+            return DEFAULT_TEST_TEMPLATE, t.get("language") or DEFAULT_TEST_LANGUAGE
+    if approved:
+        return approved[0]["name"], approved[0].get("language") or "en"
+    raise WaBlocked(
+        "This WhatsApp account has no approved message template yet, so there's "
+        "nothing we can send as a test. Add one from the template library first.")
 
 
 # ── Coexistence: pull contacts + history within 24h (K-02) ─────────────────

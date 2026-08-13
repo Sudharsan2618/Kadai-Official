@@ -293,7 +293,12 @@ export default function SettingsPage() {
                 </div>
                 {shop.wa_connected ? (
                   <div className="mt-1.5 space-y-0.5">
-                    <p className="text-sm font-mono tracking-wide">+91 {shop.wa_number}</p>
+                    {/* Meta's own display_phone_number carries the country code —
+                        a 555 test number is +1, not +91. Only fall back to the
+                        local form for rows saved before we stored it. */}
+                    <p className="text-sm font-mono tracking-wide">
+                      {shop.wa_display_number || `+91 ${shop.wa_number}`}
+                    </p>
                     {cloud && waCfg?.waba_id && (
                       <p className="text-xs text-muted-foreground">Business account {waCfg.waba_id}</p>
                     )}

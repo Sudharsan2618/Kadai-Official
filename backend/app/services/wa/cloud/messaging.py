@@ -20,7 +20,7 @@ from app.services.read_models import window_info
 from app.services.wa.cloud.client import (graph, mark_token_expired, require_connected,
                                           shop_token, to_e164)
 from app.services.wa.cloud.templates import approved_template, param_values
-from app.services.wa.errors import WaBlocked, WaError
+from app.services.wa.errors import PAYMENT_ISSUE_CODE, WaBlocked, WaError
 from app.settings import settings
 
 log = logging.getLogger(__name__)
@@ -57,6 +57,31 @@ def _send_payload(db, shop: Shop, cust: Customer, body: str, kind: str,
                          "components": components}}
 
 
+def record_send_outcome(db, shop: Shop, ok: bool, err: WaError | None) -> None:
+    """Update what we know about this account's ability to send.
+
+    A success proves billing is in place; 131042 proves it is not. Anything else
+    tells us nothing about billing, so we leave the flag alone rather than
+    guessing — a wrong 'add a payment method' banner is worse than none."""
+    changed = False
+    if ok:
+        if not shop.wa_payment_ready:
+            shop.wa_payment_ready = True
+            changed = True
+        if shop.wa_last_error_code:
+            shop.wa_last_error_code = 0
+            changed = True
+    elif err is not None:
+        if shop.wa_last_error_code != err.code:
+            shop.wa_last_error_code = err.code
+            changed = True
+        if err.code == PAYMENT_ISSUE_CODE and shop.wa_payment_ready:
+            shop.wa_payment_ready = False
+            changed = True
+    if changed:
+        db.commit()
+
+
 def send_message(db, customer_id: int, body: str, kind: str = "text",
                  ready_label: str = "", broadcast_id: int | None = None,
                  tick: bool = True) -> Message:
@@ -90,6 +115,11 @@ def send_message(db, customer_id: int, body: str, kind: str = "text",
             if not e.transient or attempt >= SEND_RETRIES:
                 break
             time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
+
+    # Every send teaches us something about whether this account can actually
+    # send. Meta exposes no endpoint for "is billing set up", so the send result
+    # is the only source of truth we get — record it either way.
+    record_send_outcome(db, shop, ok, last_err)
 
     if not ok:
         log.warning("shop %s: send to customer %s failed — %s", shop.id, customer_id, last_err)

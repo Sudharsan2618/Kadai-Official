@@ -131,7 +131,11 @@ This is the honest list for the current goal. Ordered by how hard they block.
 | **G3** | `/connect` showed hardcoded fiction ("+91 98430 21188", "182 / 250", "1,204 messages") regardless of real state. | `frontend/app/connect/page.tsx` | High | **Fixed** |
 | **G4** | No endpoint exposed coexistence path, sync counts, or step state. | `app/api/routes/whatsapp.py` | High | **Fixed** — `GET /wa/onboarding-status` |
 | **G5** | Onboarding hardcoded `path: "fresh"`, so the primary funnel couldn't reach coexistence. | `frontend/app/onboarding/page.tsx` | High | **Fixed** |
-| **G6** | No payment-method status. Tech Provider sellers must attach a card before charged templates send. | backend + UI | Medium | **Open** — Meta exposes no API for this; `/connect` now links Meta's walkthrough and asks for manual confirmation |
+| **G6** | No payment-method status. Tech Provider sellers must attach a card before charged templates send. | backend + UI | Medium | **Fixed by inference** — Meta has no endpoint, so `131042` on a send proves it's missing and a success proves it's there (`wa_payment_ready`). Shown as "not confirmed" until one of those happens, never as a false accusation |
+| **G10** | `wa_number` stored only the last 10 digits, discarding the country code, and both `/connect` and `/settings` hardcoded a `+91` prefix — so a 555 test number rendered as `+91 5554873419`. | backend + 2 pages | Medium | **Fixed** — `wa_display_number` stores Meta's `display_phone_number` verbatim |
+| **G11** | A 555 number cannot send until its display name is approved (`131037`), and nothing surfaced it. | backend + UI | High | **Fixed** — `wa_name_status` pulled from the phone number node, surfaced as a blocker |
+| **G12** | No way to disconnect a number. | backend + UI | Medium | **Fixed** — `POST /wa/disconnect` unsubscribes the WABA and clears credentials, keeping customers/chats/orders |
+| **G13** | Coexistence sync had no UI and no retry. | backend + UI | Medium | **Fixed** — sync panel + `POST /wa/sync-history` |
 | **G7** | `WA_EMBEDDED_SIGNUP` listener `useEffect` had no dependency array — re-subscribed every render. | both pages | Low | **Fixed** |
 | **G8** | `completeConnect` closed over a stale `path`; worked only by accident of G7. | `connect/page.tsx` | Low | **Fixed** — `pathRef` |
 | **G9** | Mock-mode `/onboarding/connect` never set `waba_id`/`phone_number_id`/`wa_verified`, so the demo showed a permanently unfinished checklist. Found while testing the G4 fix. | `app/api/routes/shop.py` | Medium | **Fixed** |
@@ -169,7 +173,7 @@ done.
 | `/today`, `/chats`, `/broadcast`, `/orders`, `/customers`, `/catalog` | Real, backed by API |
 | `/settings` | Real — ES launch, templates, ready messages |
 | `/billing` | Real — Razorpay |
-| `/connect` | Real — ES launch, live status hero, live step list. Partner-capacity panel is still illustrative |
+| `/connect` | **Real, rebuilt.** Verdict → live blockers → test send → coexistence sync → number → disconnect. No mock data |
 | `/templates`, `/insights`, `/payments`, `/growth` | Design previews on mock data, as scoped |
 
 ---
@@ -186,9 +190,15 @@ WA_VERIFY_TOKEN=<random>
 WA_TOKEN_ENC_KEY=<fernet key>
 ```
 
-`META_ES_CONFIG_ID` being empty is what produces "Meta Embedded Signup isn't
-configured" on `/connect` and `/settings`. See `EMBEDDED-SIGNUP-V4-TODO.md` for
-where to get it.
+**As of 2026-08-08 `backend/.env` is fully populated and `WA_MODE=cloud`** —
+app id, ES config id, app secret, verify token and Fernet key are all set. The
+app is pointed at real Meta right now.
+
+What is *not* done is running it: **zero shops in the database have a real Meta
+WABA, and zero messages have a `wamid`.** Every `wa_connected=true` row is either
+leftover mock state or a test fixture. So Embedded Signup has never actually
+completed against Meta — not because it is unconfigured, but because nobody has
+run it yet.
 
 Frontend must point at the API: `NEXT_PUBLIC_API_URL` (defaults to
 `http://localhost:8010`, which is also the port `backend/README.md` documents —

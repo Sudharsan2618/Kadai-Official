@@ -55,6 +55,7 @@ def owned_customer(db: Session, shop: Shop, customer_id: int | None) -> Customer
 def cloud_mode_only():
     """Guard for routes that only mean something against the real Meta API."""
     if not settings.wa.is_cloud:
-        raise HTTPException(status_code=409, detail="Templates need cloud mode (real WhatsApp)")
+        raise HTTPException(status_code=409,
+                            detail="This needs a real WhatsApp connection — the demo runs offline")
     from app.services.wa import cloud
     return cloud

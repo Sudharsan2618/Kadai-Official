@@ -11,7 +11,8 @@ dispatcher in app.services.wa can swap it in with WA_MODE=cloud and no route
 changes."""
 from app.services.wa.cloud.client import graph, require_connected, shop_token
 from app.services.wa.cloud.messaging import send_message, start_broadcast
-from app.services.wa.cloud.signup import (connect_embedded_signup, get_mm_status,
+from app.services.wa.cloud.signup import (connect_embedded_signup, disconnect,
+                                          get_mm_status, refresh_number_health,
                                           register_number, send_test_message,
                                           start_coexistence_sync)
 from app.services.wa.cloud.templates import (approved_template, submit_template,
@@ -22,7 +23,7 @@ from app.services.wa.phones import to_e164, to_local
 __all__ = [
     "send_message", "start_broadcast",
     "connect_embedded_signup", "register_number", "start_coexistence_sync", "get_mm_status",
-    "send_test_message",
+    "send_test_message", "disconnect", "refresh_number_health",
     "submit_template", "sync_template_status", "approved_template", "to_meta_body",
     "graph", "shop_token", "require_connected", "to_e164", "to_local",
     "WaError", "WaBlocked",

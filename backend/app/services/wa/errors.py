@@ -13,6 +13,12 @@ REENGAGEMENT_CODES = {131047, 131026, 470, 1013}
 ALREADY_REGISTERED_CODE = 131070
 # The seller declined to share WhatsApp Business app history — not a failure
 HISTORY_DECLINED_CODE = 2593109
+# No usable payment method on the seller's WhatsApp Business account. Meta gives
+# us no way to query this, so this error is the only reliable signal we get.
+PAYMENT_ISSUE_CODE = 131042
+# A 555 test number whose display name has not been approved yet — it cannot
+# send anything until that clears.
+DISPLAY_NAME_UNAPPROVED_CODE = 131037
 
 
 class WaError(Exception):
