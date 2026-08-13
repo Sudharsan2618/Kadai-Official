@@ -23,6 +23,11 @@ type Path = "coexist" | "fresh"
    can actually resolve these — neither is fixable inside Kadai. */
 const META_BILLING = "https://www.facebook.com/business/help/488291839463771"
 const META_DISPLAY_NAME = "https://www.facebook.com/business/help/378834799515077"
+/* Meta gives no API for the test-number allow list — a recipient has to be added
+   by hand and verify a code, which is the point of the restriction. All we can do
+   is send the seller straight to the one screen where it's possible. */
+const metaDevConsole = (appId: string) =>
+  `https://developers.facebook.com/apps/${appId}/whatsapp-business/wa-dev-console/`
 
 const BLOCKER_ICON: Record<string, any> = {
   payment_method: CreditCard,
@@ -47,6 +52,9 @@ export default function ConnectPage() {
   const [busy, setBusy] = useState<string>("")
   const [testPhone, setTestPhone] = useState("")
   const [testError, setTestError] = useState("")
+  // A Meta rejection comes back as a 200 with guidance rather than an error
+  // string, so the screen can show the fix instead of a "(#131030)" code.
+  const [testProblem, setTestProblem] = useState<any | null>(null)
   const [confirmDisconnect, setConfirmDisconnect] = useState(false)
 
   const codeRef = useRef("")
@@ -153,21 +161,29 @@ export default function ConnectPage() {
 
   const sendTest = () => {
     setTestError("")
+    setTestProblem(null)
     setBusy("test")
     post("/wa/test-message", testPhone ? { phone: testPhone } : {})
-      .then(() => { toast("Message sent — check that phone"); loadStatus() })
+      .then((r: any) => {
+        if (r?.sent === false) { setTestProblem(r); loadStatus(); return }
+        toast("Message sent — check that phone")
+        loadStatus()
+      })
       .catch((e) => setTestError(e instanceof Error ? e.message : "Couldn't send"))
       .finally(() => setBusy(""))
   }
 
   const openMeta = (url: string) => window.open(url, "_blank", "noopener")
 
-  const blockerAction = (b: any) => {
-    switch (b.action) {
+  const actionButton = (action: string) => {
+    switch (action) {
       case "billing": return <Button variant="secondary" onClick={() => openMeta(META_BILLING)}>
         Open Meta billing <ExternalLink size={13} /></Button>
       case "display_name": return <Button variant="secondary" onClick={() => openMeta(META_DISPLAY_NAME)}>
         Set display name <ExternalLink size={13} /></Button>
+      case "allow_list": return <Button variant="secondary"
+        onClick={() => openMeta(metaDevConsole(waCfg?.app_id || ""))}>
+        Add the number in Meta <ExternalLink size={13} /></Button>
       case "reconnect": return <Button onClick={launch} disabled={busy === "connect"}>
         {busy === "connect" ? "Opening…" : "Reconnect WhatsApp"}</Button>
       case "register": return <Button variant="secondary" disabled={busy === "register"}
@@ -287,7 +303,7 @@ export default function ConnectPage() {
                           {b.severity === "unknown" && <Chip tone="gray">Not confirmed</Chip>}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{b.detail}</p>
-                        <div className="mt-2.5">{blockerAction(b)}</div>
+                        <div className="mt-2.5">{actionButton(b.action)}</div>
                       </div>
                     </div>
                   )
@@ -312,7 +328,7 @@ export default function ConnectPage() {
                     <Field label="Send to">
                       <Input
                         value={testPhone}
-                        onChange={(e) => { setTestPhone(e.target.value); setTestError("") }}
+                        onChange={(e) => { setTestPhone(e.target.value); setTestError(""); setTestProblem(null) }}
                         placeholder="Your personal WhatsApp number"
                         inputMode="numeric"
                       />
@@ -323,6 +339,38 @@ export default function ConnectPage() {
                   </Button>
                 </div>
                 <FieldError error={testError} />
+
+                {/* Meta rejected it — explain in the seller's terms and point at
+                    the only screen where it can actually be fixed. */}
+                {testProblem && (
+                  <div className="mt-3 rounded-lg bg-warning-soft px-3 py-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={15} className="text-warning-text shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-warning-text">{testProblem.title}</p>
+                        <p className="text-xs text-warning-text mt-1 leading-relaxed">{testProblem.detail}</p>
+                        {testProblem.action === "allow_list" && (
+                          <ol className="text-xs text-warning-text mt-2 space-y-1 list-decimal pl-4 leading-relaxed">
+                            <li>Open the Meta dashboard below</li>
+                            <li>Under <span className="font-medium">To</span>, choose <span className="font-medium">Manage phone number list</span></li>
+                            <li>Add <span className="font-mono">{testPhone || "the number"}</span> and send the code</li>
+                            <li>Enter the code WhatsApp sends to that phone</li>
+                            <li>Come back here and send again</li>
+                          </ol>
+                        )}
+                        <div className="mt-2.5">{actionButton(testProblem.action)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Say this before they hit it, not only after. */}
+                {status?.is_test_number && !testProblem && (
+                  <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
+                    This is a Meta test number, so it can only message people you&apos;ve added
+                    to its list in the Meta dashboard. A real shop number has no such limit.
+                  </p>
+                )}
                 <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
                   Use a different phone from your shop number — WhatsApp won&apos;t let a
                   number message itself.
@@ -384,9 +432,12 @@ export default function ConnectPage() {
               <Card className="px-4 py-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium tabular-nums">
-                      {status.display_number || "Number pending"}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium tabular-nums">
+                        {status.display_number || "Number pending"}
+                      </p>
+                      {status.is_test_number && <Chip tone="amber">Meta test number</Chip>}
+                    </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {status.verified_name || "No display name yet"}
                       {status.coexisting ? " · WhatsApp Business app kept" : " · new number"}

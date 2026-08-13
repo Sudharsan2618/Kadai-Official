@@ -99,12 +99,17 @@ export default function OnboardingPage() {
     setTestError("")
     setBusy(true)
     try {
-      await post("/wa/test-message", { phone: testPhone })
+      // A Meta rejection returns 200 with guidance rather than throwing, so the
+      // seller sees what to do instead of a raw error code.
+      const r: any = await post("/wa/test-message", { phone: testPhone })
+      if (r?.sent === false) {
+        setTestError(`${r.title}. ${r.detail}`)
+        return
+      }
       setTestSent(true)
       posthog.capture("onboarding_test_message_sent")
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Couldn't send the test message"
-      setTestError(msg)
+      setTestError(e instanceof Error ? e.message : "Couldn't send the test message")
     } finally {
       setBusy(false)
     }

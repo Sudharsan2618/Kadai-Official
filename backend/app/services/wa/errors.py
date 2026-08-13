@@ -19,6 +19,58 @@ PAYMENT_ISSUE_CODE = 131042
 # A 555 test number whose display name has not been approved yet — it cannot
 # send anything until that clears.
 DISPLAY_NAME_UNAPPROVED_CODE = 131037
+# Public test numbers can only message recipients added to an allow list in the
+# App Dashboard. Meta provides no API for that list — the recipient has to enter
+# a verification code, which is the point of the restriction.
+RECIPIENT_NOT_ALLOWED_CODE = 131030
+
+
+def explain(err: "WaError") -> dict:
+    """Turn a Meta error into something a shop owner can act on.
+
+    Meta's own strings are written for developers ("Recipient phone number not
+    in allowed list"). A seller needs to know what went wrong, whether it's
+    their fault, and exactly what to do — so each entry carries an `action` the
+    UI turns into the right button."""
+    code = err.code
+    if code == RECIPIENT_NOT_ALLOWED_CODE:
+        return {
+            "title": "This number isn't on your test list yet",
+            "detail": "Your WhatsApp number is still a Meta test number, so it can only "
+                      "message people you've added and verified in the Meta dashboard. "
+                      "Add the number there, enter the code WhatsApp sends it, then try again.",
+            "action": "allow_list",
+        }
+    if code == DISPLAY_NAME_UNAPPROVED_CODE:
+        return {
+            "title": "Your display name needs approving first",
+            "detail": "Meta hasn't approved the name customers will see, and test numbers "
+                      "can't send until it does.",
+            "action": "display_name",
+        }
+    if code == PAYMENT_ISSUE_CODE:
+        return {
+            "title": "No working payment method",
+            "detail": "Meta bills you directly for messages and couldn't charge this "
+                      "account. Add or fix the payment method on your WhatsApp account.",
+            "action": "billing",
+        }
+    if code in REENGAGEMENT_CODES:
+        return {
+            "title": "This person hasn't messaged you recently",
+            "detail": "More than 24 hours have passed, so WhatsApp only allows an "
+                      "approved template message to this number.",
+            "action": "templates",
+        }
+    if code in AUTH_ERROR_CODES:
+        return {
+            "title": "Your WhatsApp connection expired",
+            "detail": "Meta's permission for Kadai ran out. Reconnect to carry on — you "
+                      "keep your number, chats and contacts.",
+            "action": "reconnect",
+        }
+    return {"title": "WhatsApp couldn't send that message",
+            "detail": str(err), "action": ""}
 
 
 class WaError(Exception):

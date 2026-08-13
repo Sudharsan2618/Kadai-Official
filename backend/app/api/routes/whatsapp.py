@@ -2,6 +2,7 @@
 
 Separate from the Meta webhook route (which is Meta-facing and unauthenticated-
 but-signed); everything here rides the normal JWT → current_shop chain."""
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -11,7 +12,8 @@ from app.api.deps import cloud_mode_only, current_shop
 from app.db.session import get_db
 from app.models import ReadyMessage, Shop, Template
 from app.services import wa
-from app.services.wa.errors import PAYMENT_ISSUE_CODE, WaBlocked, WaError
+from app.services.wa.errors import (PAYMENT_ISSUE_CODE, RECIPIENT_NOT_ALLOWED_CODE,
+                                    WaBlocked, WaError, explain)
 from app.settings import settings
 
 router = APIRouter(tags=["whatsapp"])
@@ -33,6 +35,14 @@ def wa_config(shop: Shop = Depends(current_shop)):
         "mm_terms_status": shop.wa_mm_terms_status,
         "mm_terms_signed_at": shop.wa_mm_terms_signed_at.isoformat() if shop.wa_mm_terms_signed_at else None,
     }
+
+
+def _is_test_number(shop: Shop) -> bool:
+    """Meta's public test numbers are +1 with a 555 area code. They can only
+    message an allow list maintained by hand in the App Dashboard, which is the
+    single most confusing thing a new seller hits (error 131030)."""
+    digits = re.sub(r"\D", "", shop.wa_display_number or "")
+    return digits.startswith("1555")
 
 
 def _blockers(shop: Shop, token_expired: bool) -> list[dict]:
@@ -125,6 +135,7 @@ def onboarding_status(shop: Shop = Depends(current_shop)):
         "coexisting": coexisting,
         "name_status": shop.wa_name_status,
         "quality_rating": shop.wa_quality_rating,
+        "is_test_number": _is_test_number(shop),
         "payment_ready": shop.wa_payment_ready,
         "last_error_code": shop.wa_last_error_code,
         "history_sync_status": shop.wa_history_sync_status,
@@ -197,9 +208,14 @@ def test_message(payload: dict = Body(default={}),
     try:
         result = wa.send_test_message(db, shop, phone)
     except WaBlocked as e:
+        # Our own precondition failures (no number given, self-send) — the
+        # seller can fix these in the field right in front of them.
         raise HTTPException(400, str(e))
     except WaError as e:
-        raise HTTPException(502, str(e))
+        # Meta rejected it. That's a legitimate outcome of a diagnostic, not a
+        # server fault — return 200 with guidance so the UI can render the fix
+        # rather than a raw "(#131030)" string the seller can do nothing with.
+        return {"sent": False, "error_code": e.code, **explain(e)}
     shop.wa_test_message_sent_at = datetime.now()
     db.commit()
     return result
