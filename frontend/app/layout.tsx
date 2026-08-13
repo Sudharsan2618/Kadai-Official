@@ -1,15 +1,8 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { IBM_Plex_Sans } from "next/font/google";
 import { Toaster } from "@/components/toaster";
 import { AuthProvider } from "@/lib/auth";
 import "./globals.css";
-
-const plex = IBM_Plex_Sans({
-  variable: "--font-plex",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
 
 export const metadata: Metadata = {
   title: "Kadai — your shop on WhatsApp",
@@ -22,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${plex.variable} h-full antialiased`}>
+    <html lang="en" className="h-full antialiased">
       <body className="min-h-full">
         <AuthProvider>
           {children}
