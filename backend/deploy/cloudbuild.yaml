@@ -13,7 +13,9 @@ substitutions:
   _REGION: asia-south1
   _SERVICE: kadai-api
   _REPO: kadai
-  _WA_MODE: cloud
+  _WA_MODE: baileys
+  # Internal URL of the deployed wa-gateway service (built from backend/wa-gateway).
+  _WA_GATEWAY_URL: ""
   _CORS_ORIGINS: ""
   _FRONTEND_URL: ""
 
@@ -59,4 +61,6 @@ steps:
       - "--max-instances=1"
       - "--session-affinity"
       - "--timeout=3600"
-      - "--set-env-vars=^;^APP_ENV=production;JSON_LOGS=true;WA_MODE=${_WA_MODE};RUN_MIGRATIONS=true;SEED_DEMO_DATA=false;CORS_ORIGINS=${_CORS_ORIGINS};FRONTEND_URL=${_FRONTEND_URL}"
+      # WA_GATEWAY_SECRET is NOT set here — it is a secret, owned by deploy.sh /
+      # `gcloud run services update --set-secrets`, so a rebuild never rewrites it.
+      - "--set-env-vars=^;^APP_ENV=production;JSON_LOGS=true;WA_MODE=${_WA_MODE};WA_GATEWAY_URL=${_WA_GATEWAY_URL};RUN_MIGRATIONS=true;SEED_DEMO_DATA=false;CORS_ORIGINS=${_CORS_ORIGINS};FRONTEND_URL=${_FRONTEND_URL}"

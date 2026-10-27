@@ -1,7 +1,7 @@
 """Ready messages — the seller's saved, reusable message bodies.
 
-In cloud mode each one can be submitted to Meta as a template; that lives in
-the whatsapp route since it only exists against the real API."""
+They send as plain WhatsApp text via the Baileys gateway ({name}/{shop}
+placeholders are filled at send time); there are no templates to approve."""
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 

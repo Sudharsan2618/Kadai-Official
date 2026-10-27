@@ -3,8 +3,8 @@
 Startup order matters and is load-bearing:
   1. capture the event loop — sync routes need it to schedule background work
   2. ensure_schema + create_all — create_all only ADDS tables, never ALTERs
-  3. migrations — a database created before the Layer 2 columns landed still
-     lacks shops.waba_id et al., and step 4 selects every column in the model
+  3. migrations — a database created before the WhatsApp link columns landed
+     still lacks shops.wa_link_status et al., and step 4 selects every column
   4. seed (opt-in) — demo data, skipped once any shop exists
 
 On Cloud Run, keep this to ONE instance unless you move the SSE broker and

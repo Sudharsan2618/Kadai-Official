@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
+import Link from "next/link"
 import {
   FileText, Plus, X, Pencil, Trash2, Store, MessageCircle, Globe2,
-  ShieldCheck, RefreshCw, Send, AlertTriangle, CheckCircle2, Clock3,
 } from "lucide-react"
 import { Shell } from "@/components/shell"
 import { cn, Card, Chip, Button, Input, Textarea, Field, FieldError } from "@/components/ui"
@@ -12,30 +12,14 @@ import { get, post, patch, del } from "@/lib/api"
 import { toast, toastError } from "@/components/toaster"
 import { requiredError } from "@/lib/validate"
 
-declare global {
-  interface Window { FB?: any; fbAsyncInit?: () => void }
-}
-
 type WaConfig = {
-  mode: "mock" | "cloud"
-  app_id: string
-  config_id: string
+  mode: "mock" | "baileys"
   connected: boolean
   number: string
-  verified: boolean
-  waba_id: string
-  token_expired: boolean
-  mm_terms_status?: string
+  link_status?: string
 }
 
 const WA_GREEN = "#25D366"
-
-const TEMPLATE_STATUS: Record<string, { label: string; tone: "green" | "amber" | "red" | "gray"; icon: any }> = {
-  approved: { label: "Template approved", tone: "green", icon: CheckCircle2 },
-  pending: { label: "In review at Meta", tone: "amber", icon: Clock3 },
-  rejected: { label: "Rejected", tone: "red", icon: AlertTriangle },
-  paused: { label: "Paused", tone: "gray", icon: AlertTriangle },
-}
 
 /* Section — settled two-column settings row: label rail on the left, card on
    the right. This is what makes the page read as a product, not a form dump. */
@@ -51,91 +35,22 @@ function Section({ title, description, children }: { title: string; description:
   )
 }
 
-function loadFbSdk(appId: string): Promise<void> {
-  return new Promise((resolve) => {
-    if (window.FB) return resolve()
-    window.fbAsyncInit = () => {
-      window.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: "v25.0" })
-      resolve()
-    }
-    const s = document.createElement("script")
-    s.src = "https://connect.facebook.net/en_US/sdk.js"
-    s.async = true
-    s.defer = true
-    document.body.appendChild(s)
-  })
-}
-
 export default function SettingsPage() {
   const [shop, setShop] = useState<any | null>(null)
   const [readyMessages, setReadyMessages] = useState<any[]>([])
   const [waCfg, setWaCfg] = useState<WaConfig | null>(null)
-  const [templates, setTemplates] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
   const [editing, setEditing] = useState<any | null>(null)
-  const [connecting, setConnecting] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-  const signupCode = useRef<string>("")
-  const signupAssets = useRef<{ waba_id?: string; phone_number_id?: string }>({})
-  const signupSubmitting = useRef(false)
+  const [rmErrors, setRmErrors] = useState<{ label?: string; body?: string }>({})
 
   const load = useCallback(() => {
     get("/shop").then(setShop).catch(() => {})
     get("/ready-messages").then(setReadyMessages).catch(() => {})
-    get<WaConfig>("/wa/config").then((cfg) => {
-      setWaCfg(cfg)
-      if (cfg.mode === "cloud") get("/templates").then(setTemplates).catch(() => {})
-    }).catch(() => {})
+    get<WaConfig>("/wa/config").then(setWaCfg).catch(() => {})
   }, [])
 
   useEffect(() => { load() }, [load])
-
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      if (!event.origin.endsWith("facebook.com")) return
-      let data: any
-      try { data = typeof event.data === "string" ? JSON.parse(event.data) : event.data } catch { return }
-      if (data?.type !== "WA_EMBEDDED_SIGNUP") return
-
-      const assets = data.data || {}
-      if (data.event === "CANCEL") {
-        signupCode.current = ""
-        signupAssets.current = {}
-        signupSubmitting.current = false
-        setConnecting(false)
-        toastError(assets.error_message || `Meta signup was cancelled${assets.current_step ? ` at ${assets.current_step}` : ""}`)
-        return
-      }
-      if (assets.waba_id || assets.phone_number_id) {
-        signupAssets.current = {
-          waba_id: assets.waba_id,
-          phone_number_id: assets.phone_number_id,
-        }
-        finishSignup()
-      }
-    }
-    window.addEventListener("message", onMessage)
-    return () => window.removeEventListener("message", onMessage)
-  })
-
-  const finishSignup = () => {
-    const code = signupCode.current
-    const assets = signupAssets.current
-    if (!code || !assets.waba_id || !assets.phone_number_id || signupSubmitting.current) return
-    signupSubmitting.current = true
-    post("/onboarding/connect", { code, ...assets, path: "fresh" })
-      .then(() => { toast("WhatsApp connected — you're live"); load() })
-      .catch((e) => toastError(e instanceof Error ? e.message : "Couldn't connect"))
-      .finally(() => {
-        signupCode.current = ""
-        signupAssets.current = {}
-        signupSubmitting.current = false
-        setConnecting(false)
-      })
-  }
-
-  const [rmErrors, setRmErrors] = useState<{ label?: string; body?: string }>({})
 
   const saveShop = async (fields: any) => {
     setSaving(true)
@@ -183,71 +98,9 @@ export default function SettingsPage() {
     load()
   }
 
-  // Mock mode: instant connect. Cloud mode: Meta Embedded Signup popup → code → backend exchange.
-  const connectWhatsApp = async () => {
-    if (!waCfg) return
-    setConnecting(true)
-    try {
-      if (waCfg.mode === "cloud") {
-        if (!waCfg.app_id || !waCfg.config_id) {
-          toastError("Meta app isn't configured yet — set META_APP_ID / META_ES_CONFIG_ID")
-          return
-        }
-        signupCode.current = ""
-        signupAssets.current = {}
-        signupSubmitting.current = false
-        await loadFbSdk(waCfg.app_id)
-        window.FB.login((resp: any) => {
-          const code = resp?.authResponse?.code
-          if (!code) { toastError("Meta signup did not return an authorization code"); setConnecting(false); return }
-          signupCode.current = code
-          finishSignup()
-        }, {
-          config_id: waCfg.config_id,
-          response_type: "code",
-          override_default_response_type: true,
-          extras: { setup: {}, sessionInfoVersion: "3", version: "v4" },
-        })
-        return // FB.login is async via callback
-      }
-      await post("/onboarding/connect", { phone: shop.phone })
-      toast("WhatsApp connected")
-      load()
-    } catch (e) {
-      toastError(e instanceof Error ? e.message : "Couldn't connect — try again")
-    } finally {
-      if (waCfg.mode !== "cloud") setConnecting(false)
-    }
-  }
-
-  const submitTemplate = async (rmId: number) => {
-    try {
-      await post(`/ready-messages/${rmId}/submit-template`, {})
-      toast("Sent to Meta for approval — usually minutes to a few hours")
-      get("/templates").then(setTemplates).catch(() => {})
-    } catch (e) {
-      toastError(e instanceof Error ? e.message : "Couldn't submit")
-    }
-  }
-
-  const syncTemplates = async () => {
-    setSyncing(true)
-    try {
-      await post("/templates/sync")
-      await get("/templates").then(setTemplates)
-      toast("Template statuses refreshed")
-    } catch (e) {
-      toastError(e instanceof Error ? e.message : "Couldn't refresh")
-    } finally {
-      setSyncing(false)
-    }
-  }
-
   if (!shop) return <Shell title="Settings"><SettingsSkeleton /></Shell>
 
-  const cloud = waCfg?.mode === "cloud"
-  const needsReconnect = cloud && waCfg?.connected && waCfg?.token_expired
-  const templateFor = (rmId: number) => templates.find((t) => t.ready_message_id === rmId)
+  const demo = waCfg?.mode === "mock"
 
   return (
     <Shell title="Settings" actions={savedFlash ? <Chip tone="green">Saved</Chip> : undefined}>
@@ -275,7 +128,7 @@ export default function SettingsPage() {
           </Card>
         </Section>
 
-        <Section title="WhatsApp" description="Your business number on the WhatsApp Cloud API. Customers message this number; everything lands in Chats.">
+        <Section title="WhatsApp" description="Your shop's WhatsApp number, linked by scanning a QR. Customers message this number; everything lands in Chats.">
           <Card>
             <div className="p-4 md:p-5 flex items-start gap-4">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
@@ -287,97 +140,56 @@ export default function SettingsPage() {
                   <p className="text-sm font-semibold">
                     {shop.wa_connected ? "Connected" : "Not connected"}
                   </p>
-                  {shop.wa_connected && !needsReconnect && <Chip tone="green">Live</Chip>}
-                  {needsReconnect && <Chip tone="red">Session expired</Chip>}
-                  {cloud && waCfg?.verified && <Chip tone="blue"><ShieldCheck size={11} /> Number verified</Chip>}
+                  {shop.wa_connected && <Chip tone="green">Live</Chip>}
                 </div>
                 {shop.wa_connected ? (
                   <div className="mt-1.5 space-y-0.5">
-                    {/* Meta's own display_phone_number carries the country code —
-                        a 555 test number is +1, not +91. Only fall back to the
-                        local form for rows saved before we stored it. */}
                     <p className="text-sm font-mono tracking-wide">
-                      {shop.wa_display_number || `+91 ${shop.wa_number}`}
+                      {shop.wa_display_number || shop.wa_number}
                     </p>
-                    {cloud && waCfg?.waba_id && (
-                      <p className="text-xs text-muted-foreground">Business account {waCfg.waba_id}</p>
-                    )}
-                    {!cloud && <p className="text-xs text-muted-foreground">Managed business number — chats, broadcasts and delivery receipts flow through Kadai.</p>}
+                    <p className="text-xs text-muted-foreground">
+                      {demo
+                        ? "Demo mode — chats, broadcasts and replies are simulated."
+                        : "Linked device · chats, broadcasts and replies flow through Kadai."}
+                    </p>
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground mt-1">
-                    {cloud
-                      ? "Approve Kadai in Meta's secure popup — takes about 2 minutes. You keep full ownership of your number."
-                      : "Connect your number to start selling on WhatsApp."}
+                    Scan a QR with your shop phone to link WhatsApp — no Meta account, nothing to pay.
                   </p>
                 )}
               </div>
-              {(!shop.wa_connected || needsReconnect) && (
-                <Button onClick={connectWhatsApp} disabled={connecting}>
-                  {connecting ? "Opening…" : needsReconnect ? "Reconnect" : "Connect WhatsApp"}
+              <Link href="/connect">
+                <Button variant={shop.wa_connected ? "secondary" : "primary"}>
+                  {shop.wa_connected ? "Manage" : "Connect WhatsApp"}
                 </Button>
-              )}
+              </Link>
             </div>
-            {needsReconnect && (
-              <div className="px-4 md:px-5 py-2.5 border-t border-border flex items-center gap-2 text-xs text-destructive-text bg-destructive-soft rounded-b-lg">
-                <AlertTriangle size={13} className="shrink-0" />
-                Sending is paused until you reconnect — your chats and data are safe.
-              </div>
-            )}
           </Card>
         </Section>
 
         <Section
           title="Ready messages"
-          description={cloud
-            ? "Pre-written messages you can send anytime. Outside a customer's 24-hour window, WhatsApp requires Meta-approved templates — submit each message once."
-            : "Pre-written messages you can send anytime — even when a chat is quiet. Use {name} and {shop}."}
+          description="Pre-written messages you can send anytime — even when a chat is quiet. Use {name} and {shop}."
         >
           <Card>
             <div className="flex items-center justify-between px-4 md:px-5 pt-3.5 pb-2">
               <h3 className="text-sm font-semibold">{readyMessages.length} message{readyMessages.length === 1 ? "" : "s"}</h3>
-              <div className="flex items-center gap-2">
-                {cloud && (
-                  <Button variant="ghost" onClick={syncTemplates} disabled={syncing}>
-                    <RefreshCw size={13} className={syncing ? "animate-spin" : ""} /> Refresh status
-                  </Button>
-                )}
-                <Button variant="secondary" onClick={() => setEditing({ label: "", body: "" })}>
-                  <Plus size={14} /> New
-                </Button>
-              </div>
+              <Button variant="secondary" onClick={() => setEditing({ label: "", body: "" })}>
+                <Plus size={14} /> New
+              </Button>
             </div>
-            {readyMessages.map((rm) => {
-              const tpl = cloud ? templateFor(rm.id) : null
-              const ts = tpl ? TEMPLATE_STATUS[tpl.status] : null
-              return (
-                <div key={rm.id} className="flex items-start gap-3 px-4 md:px-5 py-3 border-t border-border group">
-                  <FileText size={15} className="text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium">{rm.label}</p>
-                      {cloud && (ts
-                        ? <Chip tone={ts.tone}><ts.icon size={11} /> {ts.label}</Chip>
-                        : <Chip tone="gray">Not submitted</Chip>)}
-                    </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{rm.body}</p>
-                    {tpl?.status === "rejected" && tpl.rejected_reason && (
-                      <p className="text-xs text-destructive-text mt-1">Meta: {tpl.rejected_reason}</p>
-                    )}
-                    {cloud && (!tpl || tpl.status === "rejected") && (
-                      <button
-                        onClick={() => submitTemplate(rm.id)}
-                        className="inline-flex items-center gap-1 text-xs text-primary font-medium mt-1.5 hover:underline"
-                      >
-                        <Send size={11} /> {tpl ? "Resubmit for approval" : "Submit for approval"}
-                      </button>
-                    )}
-                  </div>
-                  <button className="p-1 text-muted-foreground hover:text-foreground" onClick={() => setEditing(rm)}><Pencil size={14} /></button>
-                  <button className="p-1 text-muted-foreground hover:text-destructive-text" onClick={() => removeReadyMessage(rm.id)}><Trash2 size={14} /></button>
+            {readyMessages.map((rm) => (
+              <div key={rm.id} className="flex items-start gap-3 px-4 md:px-5 py-3 border-t border-border group">
+                <FileText size={15} className="text-muted-foreground mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{rm.label}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{rm.body}</p>
                 </div>
-              )
-            })}
+                <button className="p-1 text-muted-foreground hover:text-foreground" onClick={() => setEditing(rm)}><Pencil size={14} /></button>
+                <button className="p-1 text-muted-foreground hover:text-destructive-text" onClick={() => removeReadyMessage(rm.id)}><Trash2 size={14} /></button>
+              </div>
+            ))}
             {readyMessages.length === 0 && (
               <p className="px-4 md:px-5 py-6 text-sm text-muted-foreground text-center border-t border-border">
                 No ready messages yet — create your first one.
@@ -408,7 +220,7 @@ export default function SettingsPage() {
         </Section>
 
         <div className="py-5 flex items-center gap-2 text-xs text-faint">
-          <Globe2 size={13} /> Kadai · your shop on WhatsApp {cloud ? "· powered by Meta WhatsApp Cloud API" : "· demo mode"}
+          <Globe2 size={13} /> Kadai · your shop on WhatsApp {demo ? "· demo mode" : "· powered by WhatsApp Web"}
         </div>
       </div>
 
@@ -430,12 +242,6 @@ export default function SettingsPage() {
                           placeholder="Vanakkam {name}! Today at {shop}: …" />
                 <FieldError error={rmErrors.body} />
               </Field>
-              {cloud && editing.id && (
-                <p className="text-xs text-muted-foreground flex items-start gap-1.5">
-                  <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                  Editing the text means the WhatsApp template must be approved again by Meta.
-                </p>
-              )}
               <Button className="w-full" disabled={saving} onClick={saveReadyMessage}>{saving ? "Saving…" : "Save"}</Button>
             </div>
           </div>

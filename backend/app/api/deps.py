@@ -52,10 +52,11 @@ def owned_customer(db: Session, shop: Shop, customer_id: int | None) -> Customer
     return cust
 
 
-def cloud_mode_only():
-    """Guard for routes that only mean something against the real Meta API."""
-    if not settings.wa.is_cloud:
+def baileys_mode_only():
+    """Guard for routes that only mean something against a real WhatsApp link
+    (the Baileys gateway). The offline demo (WA_MODE=mock) has no gateway."""
+    if not settings.wa.is_baileys:
         raise HTTPException(status_code=409,
                             detail="This needs a real WhatsApp connection — the demo runs offline")
-    from app.services.wa import cloud
-    return cloud
+    from app.services.wa import baileys
+    return baileys

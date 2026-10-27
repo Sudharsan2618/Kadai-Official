@@ -4,16 +4,16 @@ Order matters only for readability — paths don't overlap. All of these mount
 at the root to keep the URLs the frontend already calls unchanged."""
 from fastapi import APIRouter
 
-from app.api.routes import (auth, billing, broadcasts, chats, customers, dashboard,
-                            health, meta_webhook, orders, products, ready_messages,
-                            shop, whatsapp)
+from app.api.routes import (auth, baileys_webhook, billing, broadcasts, chats,
+                            customers, dashboard, health, orders, products,
+                            ready_messages, shop, whatsapp)
 
 api_router = APIRouter()
 
 # Public / unauthenticated
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
-api_router.include_router(meta_webhook.router)   # Meta-facing (signature-checked, no JWT)
+api_router.include_router(baileys_webhook.router)   # gateway-facing (shared-secret, no JWT)
 
 # Seller-facing (JWT → current_shop)
 api_router.include_router(shop.router)

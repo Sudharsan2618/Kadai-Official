@@ -1,3 +1,7 @@
+> **Superseded (historical).** Kadai now connects to WhatsApp through Baileys
+> (WhatsApp Web), not the Meta Cloud API. This document describes the old
+> Meta integration and is kept for history only. See the repo README.
+
 # Meta Tech Provider Setup — Step-by-Step Guide for Kadai
 
 > What YOU (Sudharsan) must do on Meta's side, in order, to let Kadai onboard real

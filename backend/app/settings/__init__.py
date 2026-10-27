@@ -1,7 +1,7 @@
 """Application settings, grouped by concern.
 
     from app.settings import settings
-    settings.wa.is_cloud        # transport mode
+    settings.wa.is_baileys      # transport mode
     settings.db.url             # SQLAlchemy URL
     settings.billing.plan_id    # product plan
 

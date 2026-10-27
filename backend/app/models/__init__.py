@@ -9,7 +9,7 @@ from app.db.base import Base, now
 from app.models.billing import Payment, Subscription
 from app.models.commerce import ORDER_STATUSES, Customer, Order, Product
 from app.models.messaging import (Broadcast, BroadcastRecipient, Message,
-                                  ReadyMessage, Template)
+                                  ReadyMessage)
 from app.models.shop import Shop
 from app.models.user import User
 
@@ -18,5 +18,5 @@ __all__ = [
     "User", "Shop",
     "Subscription", "Payment",
     "Customer", "Product", "Order", "ORDER_STATUSES",
-    "Message", "ReadyMessage", "Template", "Broadcast", "BroadcastRecipient",
+    "Message", "ReadyMessage", "Broadcast", "BroadcastRecipient",
 ]

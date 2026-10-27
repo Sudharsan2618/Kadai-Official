@@ -1,6 +1,4 @@
 """The shop profile and WhatsApp onboarding."""
-from datetime import datetime
-
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -35,43 +33,23 @@ def onboarding_connect(payload: dict = Body(default={}), shop: Shop = Depends(cu
                        db: Session = Depends(get_db)):
     """Connect the seller's WhatsApp number.
 
-    cloud → real Meta Embedded Signup: the frontend popup returns a short-lived
-    `code`; exchange it, discover WABA + phone_number_id, subscribe, register.
-    `path` ("fresh" | "coexist") comes from the connect screen — coexist means
-    the seller kept their WhatsApp Business app number (K-02).
-    mock  → just marks the number connected so the demo flow works end-to-end."""
-    if settings.wa.is_cloud:
-        from app.services.wa import cloud
-        code = (payload.get("code") or "").strip()
-        if not code:
-            raise HTTPException(400, "Missing Meta authorization code — finish the WhatsApp popup")
+    baileys → start the gateway link (QR / pairing code); the socket completes
+    the link when the seller scans, and /wa/link/status reports when it is up.
+    mock    → just marks the number connected so the demo flow works end-to-end."""
+    if settings.wa.is_baileys:
+        from app.services.wa import baileys
+        phone = "".join(c for c in str(payload.get("phone") or "") if c.isdigit())
         try:
-            return cloud.connect_embedded_signup(
-                db, shop, code,
-                waba_id_hint=(payload.get("waba_id") or "").strip(),
-                phone_number_id_hint=(payload.get("phone_number_id") or "").strip(),
-                path=(payload.get("path") or "fresh"),
-            )
+            baileys.start_link(db, shop, phone)
         except WaError as e:
             raise HTTPException(502, str(e))
+        return {"linking": True}
 
-    # Mock mode: stand in for everything Embedded Signup would have produced.
-    # The mock has to leave the shop row in the SAME shape the cloud path does,
-    # or anything that reads those fields (onboarding status, the connect
-    # screen's step list) reports a permanently unfinished setup in the demo.
-    path = payload.get("path") or "fresh"
-    coexist = path == "coexist"
+    # Mock mode: stand in for what linking would have produced so the demo's
+    # onboarding step list reports a finished setup.
     shop.wa_connected = True
     shop.wa_number = payload.get("phone", shop.phone or "9843000001")
-    shop.waba_id = shop.waba_id or f"mock-waba-{shop.id}"
-    shop.phone_number_id = shop.phone_number_id or f"mock-phone-{shop.id}"
-    shop.wa_access_token = shop.wa_access_token or "mock-token"
-    shop.wa_verified = True
-    shop.wa_onboarding_path = path
-    shop.wa_is_on_biz_app = coexist
-    if coexist:
-        # Mirrors what the coexistence sync would report once it finished.
-        shop.wa_history_sync_status = "done"
-        shop.wa_history_synced_at = datetime.now()
+    shop.wa_display_number = shop.wa_number
+    shop.wa_link_status = "linked"
     db.commit()
-    return {"connected": True, "wa_number": shop.wa_number, "coexist": coexist}
+    return {"connected": True, "wa_number": shop.wa_number}

@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Megaphone, MessageCircle, ChevronRight, Check } from "lucide-react"
 import { Shell } from "@/components/shell"
-import { cn, Card, CardHeader, Chip, Button, Avatar, EmptyState, ErrorState, Dot, rupees, timeShort, windowLeft, ORDER_STATUS } from "@/components/ui"
+import { cn, Card, CardHeader, Chip, Button, Avatar, EmptyState, ErrorState, Dot, rupees, timeShort, ORDER_STATUS } from "@/components/ui"
 import { TodaySkeleton } from "@/components/skeletons"
 import { get, post, subscribeEvents } from "@/lib/api"
 import { toast, toastError } from "@/components/toaster"
@@ -126,11 +126,6 @@ export default function TodayPage() {
                       <p className="text-sm font-medium truncate">{c.name}</p>
                       <p className="text-xs text-muted-foreground truncate">{c.last_body}</p>
                     </div>
-                    {c.window.open ? (
-                      <Chip tone="green">{windowLeft(c.window.expires_at)}</Chip>
-                    ) : (
-                      <Chip tone="amber">Ready message</Chip>
-                    )}
                     <ChevronRight size={15} className="text-faint shrink-0" />
                   </Link>
                 ))}

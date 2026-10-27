@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import {
   Sun, MessageCircle, Megaphone, ShoppingCart, Users, Package, Settings,
   CreditCard, LogOut, PanelLeftClose, PanelLeftOpen, MoreHorizontal, X, Compass,
-  Smartphone, FileText, BarChart3, Wallet, TrendingUp,
+  Smartphone, BarChart3, Wallet, TrendingUp,
 } from "lucide-react"
 import { cn, Dot } from "@/components/ui"
 import { get } from "@/lib/api"
@@ -26,7 +26,6 @@ const NAV = [
    scoped in docs/PRODUCT-SCOPE-2026.md and tracked as GitHub issues. */
 const PLATFORM = [
   { href: "/connect", label: "Connect", icon: Smartphone },
-  { href: "/templates", label: "Templates", icon: FileText },
   { href: "/insights", label: "Insights", icon: BarChart3 },
   { href: "/payments", label: "Payments", icon: Wallet },
   { href: "/growth", label: "Grow", icon: TrendingUp },

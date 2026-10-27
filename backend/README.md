@@ -3,6 +3,10 @@
 FastAPI + SQLAlchemy + PostgreSQL. WhatsApp runs in one of two modes behind a
 single dispatcher, so the same code serves the offline demo and production.
 
+Production uses **Baileys** (WhatsApp Web) via a small Node gateway sidecar
+(`wa-gateway/`) — a seller links by scanning a QR. No Meta Cloud API, no
+templates, no 24-hour window, no billing.
+
 ## Layout
 
 ```
@@ -13,12 +17,11 @@ app/
     database.py        DATABASE_URL / Cloud SQL socket / DB_* parts
     auth.py            JWT + Google OAuth
     billing.py         Razorpay + the product plan
-    whatsapp.py        WA_MODE, Meta credentials, send pacing
+    whatsapp.py        WA_MODE, Baileys gateway URL/secret, send pacing
   core/                cross-cutting, no domain knowledge
     runtime.py         the event loop holder (one, shared)
     events.py          in-process SSE broker
     security.py        JWT mint/verify, PBKDF2 passwords
-    crypto.py          Fernet encryption for per-shop Meta tokens
     logging.py         plain lines locally, JSON on Cloud Run
   db/
     session.py         engine + SessionLocal + get_db
@@ -34,10 +37,9 @@ app/
     billing/           razorpay client + subscription rules
     wa/                __init__ = the mode dispatcher
       mock.py          offline simulation
-      inbound.py       webhook payload → our tables
       phones.py        local ⇄ E.164
-      errors.py        WaError / WaBlocked (importable without cloud deps)
-      cloud/           client · messaging · templates · signup
+      errors.py        WaError / WaBlocked
+      baileys/         client · messaging · inbound · link (talks to wa-gateway)
   api/
     deps.py            current_user → current_shop → active_shop
     router.py          every router, mounted at the root
@@ -55,6 +57,11 @@ cp .env.example .env   # fill in DB_* at minimum; WA_MODE=mock needs nothing els
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8010
 ```
+
+For a real WhatsApp link set `WA_MODE=baileys` and run the gateway sidecar too
+(see `wa-gateway/README.md`), pointing `WA_GATEWAY_URL` at it and sharing one
+`WA_GATEWAY_SECRET`. The simplest way to bring up Postgres + API + gateway
+together is `docker compose up --build` from the repo root.
 
 Docs at `http://localhost:8010/docs` (off when `APP_ENV=production`).
 Set `SEED_DEMO_DATA=true` once to get the demo shop, then sign in with
@@ -81,10 +88,10 @@ Create the secrets the service reads (one per line, no trailing newline):
 printf '%s' "$JWT_SECRET" | gcloud secrets create kadai-jwt-secret --data-file=-
 ```
 
-…and likewise for `kadai-db-password`, `kadai-meta-app-secret`,
-`kadai-wa-verify-token`, `kadai-wa-token-enc-key`,
+…and likewise for `kadai-db-password`, `kadai-wa-gateway-secret`,
 `kadai-razorpay-key-secret`, `kadai-razorpay-webhook-secret`. Grant the
-service account `roles/secretmanager.secretAccessor`.
+service account `roles/secretmanager.secretAccessor`. The same
+`WA_GATEWAY_SECRET` must be set on both the API and the wa-gateway service.
 
 Then, from `backend/`:
 
@@ -131,7 +138,9 @@ with real tenants.
 
 ### After deploying
 
-Point the Meta app's webhook at `https://<service-url>/wa/webhook` with
-`WA_VERIFY_TOKEN` as the verify token, set the Razorpay webhook to
-`https://<service-url>/billing/webhook`, and set the frontend's
-`NEXT_PUBLIC_API_URL` to the service URL.
+Deploy the **wa-gateway** service (build context `backend/wa-gateway/`) with
+the same Postgres and the same `WA_GATEWAY_SECRET`, set its
+`WA_KADAI_CALLBACK_URL` to the API's URL, and point the API's `WA_GATEWAY_URL`
+at the gateway. Set the Razorpay webhook to `https://<service-url>/billing/webhook`,
+and set the frontend's `NEXT_PUBLIC_API_URL` to the API service URL. Sellers
+then link WhatsApp by scanning the QR on the Connect screen.

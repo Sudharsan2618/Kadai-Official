@@ -1,19 +1,23 @@
 # Kadai
 
-WhatsApp shop tool for small sellers in Tamil Nadu. A seller connects their
+WhatsApp shop tool for small sellers in Tamil Nadu. A seller links their
 WhatsApp number, and Kadai gives them broadcasting, order taking, a customer
 list and a catalog on top of it.
 
-Kadai is an approved **Meta Tech Provider**, so sellers onboard through Meta's
-Embedded Signup and own their own WhatsApp assets.
+WhatsApp runs on **Baileys** (WhatsApp Web): a seller links by scanning a QR —
+the same way you link WhatsApp on a laptop. No Meta Business account, no
+templates, no 24-hour window, nothing to pay. The Baileys socket lives in a
+small Node gateway sidecar (`backend/wa-gateway`) that the Python backend drives
+over HTTP.
 
 ## Repo layout
 
 ```
-backend/     FastAPI + SQLAlchemy + PostgreSQL   → backend/README.md
-frontend/    Next.js App Router + Tailwind
-docs/        product scope, Meta capability research, setup guides
-scripts/     standalone smoke tests (no app dependencies)
+backend/              FastAPI + SQLAlchemy + PostgreSQL   → backend/README.md
+backend/wa-gateway/   Node Baileys gateway sidecar        → backend/wa-gateway/README.md
+frontend/             Next.js App Router + Tailwind
+docs/                 product scope and notes (Meta-era docs marked superseded)
+scripts/              standalone smoke tests (no app dependencies)
 ```
 
 ## Run it locally
@@ -34,17 +38,22 @@ The frontend expects the API on **port 8010** (`NEXT_PUBLIC_API_URL`), which is
 also what the backend's CORS allowlist assumes. Starting uvicorn on the default
 8000 will fail CORS.
 
-`WA_MODE=mock` (the default) runs the whole product offline with a simulated
-WhatsApp — no Meta credentials needed. `WA_MODE=cloud` switches the same code to
-the real Meta Cloud API.
+`WA_MODE=mock` runs the whole product offline with a simulated WhatsApp — no
+gateway needed. `WA_MODE=baileys` (the default) switches the same code to the
+real WhatsApp via the gateway sidecar; run it too (`backend/wa-gateway`) sharing
+one `WA_GATEWAY_SECRET`, or bring everything up with `docker compose up --build`
+from the repo root.
 
 ## Where to read next
 
 | If you want | Read |
 |---|---|
-| What is actually built right now | `docs/STATE-OF-THE-CODEBASE.md` |
 | Backend layout, deploy, database | `backend/README.md` |
+| The WhatsApp (Baileys) gateway | `backend/wa-gateway/README.md` |
 | What we're building and in what order | `docs/PRODUCT-SCOPE-2026.md` |
-| Everything Meta exposes to us | `docs/META-PLATFORM-CAPABILITIES.md` |
 | How we compare to AiSensy, Interakt, Wati | `docs/COMPETITIVE-LANDSCAPE.md` |
-| Getting Embedded Signup working | `docs/EMBEDDED-SIGNUP-V4-TODO.md` |
+
+> The `docs/META-*`, `docs/MM-API-SETUP.md`, `docs/EMBEDDED-SIGNUP-V4-TODO.md`
+> and `docs/LAYER2-WHATSAPP-CLOUD-PLAN.md` files describe the old Meta Cloud API
+> integration, which Baileys replaced. They are kept for history only and no
+> longer describe how Kadai connects to WhatsApp.

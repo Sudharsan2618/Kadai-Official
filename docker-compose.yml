@@ -1,0 +1,67 @@
+# Local Kadai stack: Postgres + API + Baileys gateway.
+#
+#   docker compose up --build
+#
+# The gateway owns the WhatsApp socket (Baileys) and shares the API's Postgres
+# for durable session state. Run the frontend separately with `npm run dev`
+# (frontend/), pointed at NEXT_PUBLIC_API_URL=http://localhost:8010.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: kadai
+    ports:
+      - "5432:5432"
+    volumes:
+      - kadai_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      APP_ENV: local
+      PORT: "8080"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: kadai
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_SCHEMA: kadai
+      DB_SSLMODE: disable
+      RUN_MIGRATIONS: "true"
+      SEED_DEMO_DATA: "true"
+      CORS_ORIGINS: http://localhost:3000,http://localhost:3010
+      JWT_SECRET: kadai-dev-secret-change-me
+      WA_MODE: baileys
+      WA_GATEWAY_URL: http://gateway:8788
+      WA_GATEWAY_SECRET: dev-gateway-secret
+    ports:
+      - "8010:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  gateway:
+    build: ./backend/wa-gateway
+    environment:
+      PORT: "8788"
+      DATABASE_URL: postgres://postgres:postgres@db:5432/kadai
+      DATABASE_SSL: "false"
+      WA_GATEWAY_SECRET: dev-gateway-secret
+      # The gateway posts inbound messages + link status back to the API.
+      WA_KADAI_CALLBACK_URL: http://api:8080
+      WA_DEFAULT_COUNTRY_CODE: "91"
+    ports:
+      - "8788:8788"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  kadai_pgdata:

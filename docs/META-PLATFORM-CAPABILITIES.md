@@ -1,3 +1,7 @@
+> **Superseded (historical).** Kadai now connects to WhatsApp through Baileys
+> (WhatsApp Web), not the Meta Cloud API. This document describes the old
+> Meta integration and is kept for history only. See the repo README.
+
 # Meta WhatsApp Business Platform — Full Capability Map for Kadai
 
 > **What this is.** A complete inventory of everything Meta's WhatsApp Business

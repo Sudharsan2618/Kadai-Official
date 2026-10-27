@@ -1,24 +1,15 @@
 """Shared read-model helpers — the shapes routes hand to the frontend.
 
 All list helpers are shop-scoped. Nothing here writes."""
-from datetime import datetime, timedelta
-
-from sqlalchemy import func
-
 from app.models import Customer, Message, Order
-from app.settings import settings
 
 
 def window_info(db, customer_id: int) -> dict:
-    """The 24h customer service window: open only if the customer messaged us
-    within WA window_hours. Meta refuses free text once it closes."""
-    last_in = (db.query(func.max(Message.created_at))
-               .filter(Message.customer_id == customer_id, Message.direction == "in")
-               .scalar())
-    if not last_in:
-        return {"open": False, "expires_at": None}
-    expires = last_in + timedelta(hours=settings.wa.window_hours)
-    return {"open": datetime.now() < expires, "expires_at": expires.isoformat()}
+    """The old Meta 24-hour service window. Baileys (WhatsApp Web) has no such
+    restriction — a seller can always message a customer — so this is always
+    open. Kept as a stable shape so chat read models and the frontend that read
+    `window.open` keep working unchanged."""
+    return {"open": True, "expires_at": None}
 
 
 def conversation_rows(db, shop_id: int, page: int = 1, page_size: int = 100) -> dict:

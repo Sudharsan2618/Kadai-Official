@@ -1,10 +1,10 @@
 """WhatsApp transport dispatcher — one import site, two backends.
 
 Routes import from here; WA_MODE picks the engine at call time:
-  mock  → app.services.wa.mock   (offline simulation: fake ticks, auto-replies)
-  cloud → app.services.wa.cloud  (real Meta Cloud API + webhook-driven ticks)
+  mock     → app.services.wa.mock      (offline simulation: fake ticks, auto-replies)
+  baileys  → app.services.wa.baileys   (real transport via the Baileys gateway)
 
-Keep the demo on mock and production on cloud with a single env var — no route
+Keep the demo on mock and production on baileys with a single env var — no route
 or frontend code knows the difference."""
 from app.models import Broadcast, BroadcastRecipient, Message
 from app.services.wa.errors import WaBlocked, WaError
@@ -12,9 +12,9 @@ from app.settings import settings
 
 
 def _engine():
-    if settings.wa.is_cloud:
-        from app.services.wa import cloud  # lazy: mock installs skip the crypto import
-        return cloud
+    if settings.wa.is_baileys:
+        from app.services.wa import baileys
+        return baileys
     from app.services.wa import mock
     return mock
 

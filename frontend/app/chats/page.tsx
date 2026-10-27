@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Send, ArrowLeft, Check, CheckCheck, Clock, MessageCircle, FileText, Search } from "lucide-react"
 import { Shell } from "@/components/shell"
-import { cn, Chip, Avatar, Button, EmptyState, ErrorState, Input, timeAgo, timeShort, windowLeft } from "@/components/ui"
+import { cn, Chip, Avatar, Button, EmptyState, ErrorState, Input, timeAgo, timeShort } from "@/components/ui"
 import { ChatListSkeleton, ThreadSkeleton } from "@/components/skeletons"
 import { get, post, subscribeEvents } from "@/lib/api"
 import { toast, toastError } from "@/components/toaster"
@@ -203,11 +203,7 @@ function ChatsInner() {
                   <p className="text-sm font-semibold truncate">{thread.customer.name}</p>
                   <p className="text-[11px] text-muted-foreground">{thread.customer.phone}{thread.customer.area ? ` · ${thread.customer.area}` : ""}</p>
                 </div>
-                {windowOpen ? (
-                  <Chip tone="green"><MessageCircle size={11} /> {windowLeft(thread.window.expires_at)}</Chip>
-                ) : (
-                  <Chip tone="amber"><Clock size={11} /> Ready message only</Chip>
-                )}
+                <Chip tone="green"><MessageCircle size={11} /> WhatsApp</Chip>
               </div>
 
               <div className="flex-1 overflow-y-auto bg-secondary/40 px-3 md:px-5 py-4 space-y-2">
